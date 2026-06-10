@@ -14,8 +14,28 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(email string, userId string) (string, error) {
-	secretKey := os.Getenv("JWT_SECRET_ACCESS")
+type TokenType int
+
+const (
+	AccessToken TokenType = iota
+	RefreshToken
+)
+
+func generateToken(email string, userId string, tokenType TokenType) (string, error) {
+	var secretKey string
+	var expiry time.Duration
+
+	switch tokenType {
+	case AccessToken:
+		secretKey = os.Getenv("JWT_SECRET_ACCESS")
+		expiry = 15 * time.Minute
+	case RefreshToken:
+		secretKey = os.Getenv("JWT_SECRET_REFRESH")
+		expiry = 7 * 24 * time.Hour
+	default:
+		return "", fmt.Errorf("unknown token type")
+	}
+
 	if secretKey == "" {
 		return "", fmt.Errorf("secret key not set")
 	}
@@ -24,7 +44,7 @@ func GenerateAccessToken(email string, userId string) (string, error) {
 		Email:  email,
 		UserId: userId,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
@@ -33,23 +53,12 @@ func GenerateAccessToken(email string, userId string) (string, error) {
 	return token.SignedString([]byte(secretKey))
 }
 
+func GenerateAccessToken(email string, userId string) (string, error) {
+	return generateToken(email, userId, AccessToken)
+}
+
 func GenerateRefreshToken(email string, userId string) (string, error) {
-	secretKey := os.Getenv("JWT_SECRET_REFRESH")
-	if secretKey == "" {
-		return "", fmt.Errorf("secret key not set")
-	}
-
-	claims := CustomClaims{
-		Email:  email,
-		UserId: userId,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secretKey))
+	return generateToken(email, userId, RefreshToken)
 }
 
 func ValidateToken(tokenString string, isRefresh bool) (*CustomClaims, error) {
