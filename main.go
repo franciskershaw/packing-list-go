@@ -13,6 +13,8 @@ import (
 
 func main() {
 	server := gin.Default()
+
+	// Initialise the DB
 	err := db.InitDB()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Database init failed: %v\n", err)
