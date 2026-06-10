@@ -61,14 +61,15 @@ func GenerateRefreshToken(email string, userId string) (string, error) {
 	return generateToken(email, userId, RefreshToken)
 }
 
-func ValidateToken(tokenString string, isRefresh bool) (*CustomClaims, error) {
-	var secretKey string
-	if isRefresh {
-		secretKey = os.Getenv("JWT_SECRET_REFRESH")
-	} else {
-		secretKey = os.Getenv("JWT_SECRET_ACCESS")
-	}
+func ValidateAccessToken(tokenString string) (*CustomClaims, error) {
+	return validateToken(tokenString, os.Getenv("JWT_SECRET_ACCESS"))
+}
 
+func ValidateRefreshToken(tokenString string) (*CustomClaims, error) {
+	return validateToken(tokenString, os.Getenv("JWT_SECRET_REFRESH"))
+}
+
+func validateToken(tokenString string, secretKey string) (*CustomClaims, error) {
 	if secretKey == "" {
 		return nil, fmt.Errorf("secret key not set")
 	}
