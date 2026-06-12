@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/franciskershaw/packing-list-go/utils"
+	"github.com/franciskershaw/packing-list-go/internal/auth"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +25,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-		claims, err := utils.ValidateAccessToken(tokenString)
+		claims, err := auth.ValidateAccessToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			c.Abort()
