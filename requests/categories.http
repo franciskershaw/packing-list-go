@@ -1,0 +1,208 @@
+# Kitted API — Category Endpoints
+#
+# SETUP (do this once before running any request):
+#
+#   1. Start the server:       go run main.go
+#   2. Generate a token:       go run scripts/gen_token.go
+#   3. Paste the output below into @token
+#
+# Recommended order: run the requests top-to-bottom.
+# The PATCH and DELETE "happy path" requests use the response captured from
+# the POST that creates a category — send that POST first.
+
+@host  = http://localhost:8080
+@token =
+
+
+# ══════════════════════════════════════════
+#  GET /categories
+# ══════════════════════════════════════════
+
+### ✅ 200 — returns system + own categories as a flat list
+GET {{host}}/categories
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+GET {{host}}/categories
+
+
+# ══════════════════════════════════════════
+#  POST /categories
+# ══════════════════════════════════════════
+
+### ✅ 201 — creates a new user-owned category
+# @name createCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "My Test Category"
+}
+
+###
+
+### ❌ 400 — missing name field
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — empty name
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
+###
+
+### ❌ 400 — name exceeds 100 characters
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 409 — duplicate name (requires the 201 above to have been sent first)
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "My Test Category"
+}
+
+###
+
+### ✅ 201 — same name as a system category is allowed for user-owned categories
+#          (requires seed data: go psql $DATABASE_URL -f db/seeds/categories.sql)
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Toiletries"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/categories
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  PATCH /categories/:id
+#
+#  The happy-path requests below use the ID captured from the "createCategory"
+#  POST above. Send that request first, then run these.
+# ══════════════════════════════════════════
+
+### ✅ 200 — renames the created category
+PATCH {{host}}/categories/{{createCategory.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "My Renamed Category"
+}
+
+###
+
+### ✅ 200 — same name as current is a no-op (allowed)
+PATCH {{host}}/categories/{{createCategory.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "My Renamed Category"
+}
+
+###
+
+### ❌ 400 — empty name
+PATCH {{host}}/categories/{{createCategory.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
+###
+
+### ❌ 400 — name too long
+PATCH {{host}}/categories/{{createCategory.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 404 — category does not exist
+PATCH {{host}}/categories/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Anything"
+}
+
+###
+
+### 🔒 401 — no token
+PATCH {{host}}/categories/{{createCategory.response.body.id}}
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  DELETE /categories/:id
+#
+#  Send the createCategory POST first to get an ID to delete.
+#  After the 204 below the category is gone — subsequent PATCH/DELETE
+#  requests against the same ID will return 404.
+# ══════════════════════════════════════════
+
+### ✅ 204 — deletes the created category (no response body)
+DELETE {{host}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — already deleted (or never existed)
+DELETE {{host}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — non-existent UUID
+DELETE {{host}}/categories/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+DELETE {{host}}/categories/{{createCategory.response.body.id}}
