@@ -9,6 +9,7 @@ import (
 	"github.com/franciskershaw/packing-list-go/db"
 	"github.com/franciskershaw/packing-list-go/internal/auth"
 	"github.com/franciskershaw/packing-list-go/internal/handler"
+	"github.com/franciskershaw/packing-list-go/internal/middleware"
 	"github.com/franciskershaw/packing-list-go/internal/repository"
 	"github.com/gin-gonic/gin"
 
@@ -56,13 +57,23 @@ func main() {
 		})
 	})
 
-	// Auth routes
+	// Auth routes (public)
 	server.GET("/auth/google/login", authHandler.LoginWithGoogle)
 	server.GET("/auth/google/callback", authHandler.GoogleCallback)
 	server.POST("/auth/refresh", authHandler.RefreshToken)
 	server.POST("/auth/logout", authHandler.Logout)
 
-	// TODO: Register category routes
+	// Authenticated routes
+	categoryHandler := handler.NewCategoryHandler(repository.NewCategoryRepository(db.DB))
+	authed := server.Group("/")
+	authed.Use(middleware.AuthMiddleware())
+	{
+		authed.GET("/categories", categoryHandler.List)
+		authed.POST("/categories", categoryHandler.Create)
+		authed.PATCH("/categories/:id", categoryHandler.Update)
+		authed.DELETE("/categories/:id", categoryHandler.Delete)
+	}
+
 	// TODO: Register item routes
 	// TODO: Register template routes
 	// TODO: Register packing list routes
