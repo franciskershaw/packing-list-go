@@ -7,8 +7,9 @@ import (
 
 	"github.com/franciskershaw/packing-list-go/config"
 	"github.com/franciskershaw/packing-list-go/db"
-
-	// "github.com/franciskershaw/packing-list-go/internal/router"
+	"github.com/franciskershaw/packing-list-go/internal/auth"
+	"github.com/franciskershaw/packing-list-go/internal/handler"
+	"github.com/franciskershaw/packing-list-go/internal/repository"
 	"github.com/gin-gonic/gin"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -30,6 +31,21 @@ func main() {
 	}
 	defer db.CloseDB()
 
+	// Initialise Google OAuth manager once at startup (makes a network call)
+	oauthManager, err := auth.NewGoogleOAuthManager(
+		cfg.GoogleClientID,
+		cfg.GoogleClientSecret,
+		cfg.GoogleRedirectURL,
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Google OAuth init failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Wire up dependencies
+	userRepo := repository.NewPostgresUserRepository()
+	authHandler := handler.NewAuthHandler(userRepo, oauthManager, cfg)
+
 	// Initialize Gin server
 	server := gin.Default()
 
@@ -40,8 +56,11 @@ func main() {
 		})
 	})
 
-	// Register routes
-	// router.RegisterRoutes(server, cfg)
+	// Auth routes
+	server.GET("/auth/google/login", authHandler.LoginWithGoogle)
+	server.GET("/auth/google/callback", authHandler.GoogleCallback)
+	server.POST("/auth/refresh", authHandler.RefreshToken)
+	server.POST("/auth/logout", authHandler.Logout)
 
 	// TODO: Register category routes
 	// TODO: Register item routes

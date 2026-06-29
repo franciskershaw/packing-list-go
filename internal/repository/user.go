@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,11 +12,31 @@ import (
 	"github.com/google/uuid"
 )
 
+// PostgresUserRepository implements the UserRepository interface against a real database.
+type PostgresUserRepository struct{}
+
+func NewPostgresUserRepository() *PostgresUserRepository {
+	return &PostgresUserRepository{}
+}
+
+func (r *PostgresUserRepository) GetOrCreateUser(ctx context.Context, email, googleID, displayName, avatarURL string) (*models.User, error) {
+	return GetOrCreateUser(ctx, email, googleID, displayName, avatarURL)
+}
+
+func (r *PostgresUserRepository) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+	return GetUserByID(ctx, userID)
+}
+
 // GetOrCreateUser looks up a user by Google ID, or creates one if they don't exist
 func GetOrCreateUser(ctx context.Context, email, googleID, displayName, avatarURL string) (*models.User, error) {
 	// Try to get existing user by Google ID
 	user, err := GetUserByGoogleID(ctx, googleID)
-	if err == nil {
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to look up user: %w", err)
+		}
+		// user not found — fall through to create
+	} else {
 		// User exists, update last login
 		err = updateLastLogin(ctx, user.ID)
 		if err != nil {
