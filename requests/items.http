@@ -1,0 +1,430 @@
+# Kitted API — Item Endpoints
+#
+# SETUP (do this once before running any request):
+#
+#   1. Start the server:       go run main.go
+#   2. Generate a token:       go run scripts/gen_token.go
+#   3. Paste the output below into @token
+#
+# Recommended order: run the requests top-to-bottom.
+# Items live under categories, so the first two POSTs create a "home" category
+# and a "target" category (used for the move-category tests) — send those
+# first, then everything else references their captured IDs.
+
+@host  = http://localhost:8080
+@token = 
+
+
+# ══════════════════════════════════════════
+#  Setup — categories to hang items off
+# ══════════════════════════════════════════
+
+### create the category items will be created under
+# @name createHomeCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Items Test — Home Category"
+}
+
+###
+
+### create a second category, used for the "move to another category" PATCH tests
+# @name createTargetCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Items Test — Target Category"
+}
+
+
+# ══════════════════════════════════════════
+#  GET /items
+# ══════════════════════════════════════════
+
+### ✅ 200 — returns system + own items as a flat list
+GET {{host}}/items
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — filter by category_id
+GET {{host}}/items?category_id={{createHomeCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — filter by search (case-insensitive partial match)
+GET {{host}}/items?search=test item
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — both filters combined
+GET {{host}}/items?category_id={{createHomeCategory.response.body.id}}&search=test item
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid category_id (not a UUID)
+GET {{host}}/items?category_id=not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — category_id does not exist / not accessible
+GET {{host}}/items?category_id=00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+GET {{host}}/items
+
+
+# ══════════════════════════════════════════
+#  POST /items
+# ══════════════════════════════════════════
+
+### ✅ 201 — creates a new user-owned item under the home category
+# @name createItem
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Test Item",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing name
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — empty name
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — name exceeds 100 characters
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing categoryId
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "No Category Item"
+}
+
+###
+
+### ❌ 400 — invalid categoryId (not a UUID)
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bad Category Item",
+  "categoryId": "not-a-uuid"
+}
+
+###
+
+### ❌ 400 — categoryId does not exist / not accessible
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Inaccessible Category Item",
+  "categoryId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### ❌ 409 — duplicate name in the same category (requires the 201 above to have been sent first)
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Test Item",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ✅ 201 — same name is fine in a different category
+# @name createItemInTargetCategory
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Test Item",
+  "categoryId": "{{createTargetCategory.response.body.id}}"
+}
+
+###
+
+### ✅ 201 — creating a user item under a system category is allowed
+#          (requires seed data: psql $DATABASE_URL -f db/seeds/categories.sql)
+#          replace the categoryId below with a real system category ID from your DB
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Toothbrush Cover",
+  "categoryId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/items
+Content-Type: application/json
+
+{
+  "name": "Should Fail",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+
+# ══════════════════════════════════════════
+#  PATCH /items/:id
+#
+#  The happy-path requests below use the ID captured from the "createItem"
+#  POST above. Send that request first, then run these.
+# ══════════════════════════════════════════
+
+### ✅ 200 — renames the created item
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Renamed Test Item"
+}
+
+###
+
+### ✅ 200 — moves the item to the target category
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{createTargetCategory.response.body.id}}"
+}
+
+###
+
+### ✅ 200 — updates name and category together
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Renamed Again",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — no fields provided
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — empty name
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
+###
+
+### ❌ 400 — name too long
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 400 — invalid categoryId (not a UUID)
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "not-a-uuid"
+}
+
+###
+
+### ❌ 400 — categoryId does not exist / not accessible
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### ❌ 409 — duplicate name in the target category
+# @name createDuplicateCandidate
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Duplicate Candidate",
+  "categoryId": "{{createHomeCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 409 — rename to a name already used by another item in the same category
+#          (requires the createDuplicateCandidate POST above to have been sent
+#          first in this session, so its id is resolved)
+PATCH {{host}}/items/{{createDuplicateCandidate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Renamed Again"
+}
+
+###
+
+### ❌ 404 — item does not exist
+PATCH {{host}}/items/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Anything"
+}
+
+###
+
+### 🔒 401 — no token
+PATCH {{host}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  DELETE /items/:id
+#
+#  Send the createItem POST first (or createDuplicateCandidate) to get an ID
+#  to delete. After the 204 below the item is gone — subsequent PATCH/DELETE
+#  requests against the same ID will return 404.
+#
+#  409 (item in use on a template or active packing list) can't be exercised
+#  here yet — the template/packing-list endpoints aren't built. Once they
+#  exist, add a request that attaches the item to a template or an
+#  unarchived packing list, then retry this DELETE to see the 409.
+# ══════════════════════════════════════════
+
+### ✅ 204 — deletes the duplicate-candidate item (no response body)
+DELETE {{host}}/items/{{createDuplicateCandidate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — already deleted (or never existed)
+DELETE {{host}}/items/{{createDuplicateCandidate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — non-existent UUID
+DELETE {{host}}/items/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+DELETE {{host}}/items/{{createItem.response.body.id}}
+
+
+# ══════════════════════════════════════════
+#  Cleanup — categories can't be deleted while they still have items
+#  (DELETE /categories/:id returns 409 if CategoryHasItems), so remove the
+#  remaining items first, then the two test categories.
+#
+#  If you customised the "creating a user item under a system category"
+#  request above with a real system category ID, delete that item manually
+#  too before moving on — it isn't tracked here.
+# ══════════════════════════════════════════
+
+### 204 — delete the item left in the home category
+DELETE {{host}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete the item left in the target category
+DELETE {{host}}/items/{{createItemInTargetCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete home category
+DELETE {{host}}/categories/{{createHomeCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete target category
+DELETE {{host}}/categories/{{createTargetCategory.response.body.id}}
+Authorization: Bearer {{token}}

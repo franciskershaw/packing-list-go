@@ -31,6 +31,7 @@ func TestMain(m *testing.M) {
 	}
 
 	catRepo = repository.NewCategoryRepository(db.DB)
+	itemRepo = repository.NewItemRepository(db.DB)
 	repoUserID = uuid.New()
 
 	_, err := db.DB.Exec(
