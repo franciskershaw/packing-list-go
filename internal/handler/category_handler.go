@@ -7,6 +7,7 @@ import (
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type CategoryRepository interface {
@@ -87,6 +88,10 @@ func (h *CategoryHandler) Update(c *gin.Context) {
 	}
 
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	category, err := h.repo.GetCategoryByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch category"})
@@ -124,6 +129,10 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 	}
 
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	category, err := h.repo.GetCategoryByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch category"})
