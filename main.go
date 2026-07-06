@@ -65,6 +65,7 @@ func main() {
 
 	// Authenticated routes
 	categoryHandler := handler.NewCategoryHandler(repository.NewCategoryRepository(db.DB))
+	itemHandler := handler.NewItemHandler(repository.NewItemRepository(db.DB))
 	authed := server.Group("/")
 	authed.Use(middleware.AuthMiddleware())
 	{
@@ -72,9 +73,13 @@ func main() {
 		authed.POST("/categories", categoryHandler.Create)
 		authed.PATCH("/categories/:id", categoryHandler.Update)
 		authed.DELETE("/categories/:id", categoryHandler.Delete)
+
+		authed.GET("/items", itemHandler.List)
+		authed.POST("/items", itemHandler.Create)
+		authed.PATCH("/items/:id", itemHandler.Update)
+		authed.DELETE("/items/:id", itemHandler.Delete)
 	}
 
-	// TODO: Register item routes
 	// TODO: Register template routes
 	// TODO: Register packing list routes
 
