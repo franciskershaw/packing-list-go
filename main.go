@@ -83,5 +83,8 @@ func main() {
 	// TODO: Register template routes
 	// TODO: Register packing list routes
 
-	server.Run(":" + cfg.Port)
+	if err := server.Run(":" + cfg.Port); err != nil {
+		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		os.Exit(1)
+	}
 }
