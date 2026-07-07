@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// Wire up dependencies
-	userRepo := repository.NewPostgresUserRepository()
+	userRepo := repository.NewPostgresUserRepository(db.DB)
 	authHandler := handler.NewAuthHandler(userRepo, oauthManager, cfg)
 
 	// Initialize Gin server

@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 
 	catRepo = repository.NewCategoryRepository(db.DB)
 	itemRepo = repository.NewItemRepository(db.DB)
-	userRepo = repository.NewPostgresUserRepository()
+	userRepo = repository.NewPostgresUserRepository(db.DB)
 	repoUserID = uuid.New()
 
 	_, err := db.DB.Exec(
