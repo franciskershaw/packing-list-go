@@ -88,7 +88,7 @@ func (h *ItemHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if !h.validateAccessibleCategory(c, req.CategoryID, userID) {
+	if !validateAccessibleCategory(c, h.repo, req.CategoryID, userID) {
 		return
 	}
 
@@ -164,7 +164,7 @@ func (h *ItemHandler) Update(c *gin.Context) {
 	}
 
 	if req.CategoryID != nil {
-		if !h.validateAccessibleCategory(c, *req.CategoryID, userID) {
+		if !validateAccessibleCategory(c, h.repo, *req.CategoryID, userID) {
 			return
 		}
 	}
@@ -239,7 +239,7 @@ func (h *ItemHandler) Delete(c *gin.Context) {
 
 // validateAccessibleCategory checks the categoryId is a valid UUID and accessible to userID,
 // writing the appropriate error response and returning false if not.
-func (h *ItemHandler) validateAccessibleCategory(c *gin.Context, categoryID, userID string) bool {
+func validateAccessibleCategory(c *gin.Context, repo ItemRepository, categoryID, userID string) bool {
 	if categoryID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "categoryId is required"})
 		return false
@@ -248,7 +248,7 @@ func (h *ItemHandler) validateAccessibleCategory(c *gin.Context, categoryID, use
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid categoryId"})
 		return false
 	}
-	accessible, err := h.repo.CategoryIsAccessible(c.Request.Context(), categoryID, userID)
+	accessible, err := repo.CategoryIsAccessible(c.Request.Context(), categoryID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check category"})
 		return false
