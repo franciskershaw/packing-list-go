@@ -53,7 +53,7 @@ func main() {
 	// Health check (public)
 	server.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "Welcome to Kitted API",
+			"message": "Welcome to the Packing List API",
 		})
 	})
 
