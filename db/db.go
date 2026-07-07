@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/lib/pq"
@@ -48,8 +50,14 @@ func InitDB() error {
 }
 
 func runMigrations() error {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return fmt.Errorf("failed to determine migrations path")
+	}
+	migrationsPath := filepath.Join(filepath.Dir(thisFile), "migrations")
+
 	m, err := migrate.New(
-		"file://db/migrations",
+		"file://"+migrationsPath,
 		os.Getenv("DATABASE_URL"),
 	)
 	if err != nil {
