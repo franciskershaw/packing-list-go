@@ -38,10 +38,11 @@ func GetOrCreateUser(ctx context.Context, email, googleID, displayName, avatarUR
 		// user not found — fall through to create
 	} else {
 		// User exists, update last login
-		err = updateLastLogin(ctx, user.ID)
-		if err != nil {
+		now := time.Now()
+		if err := updateLastLogin(ctx, user.ID, now); err != nil {
 			return nil, fmt.Errorf("failed to update last login: %w", err)
 		}
+		user.LastLoginAt = now
 		return user, nil
 	}
 
@@ -133,14 +134,14 @@ func GetUserByID(ctx context.Context, userID string) (*models.User, error) {
 }
 
 // updateLastLogin updates the last_login_at timestamp for a user
-func updateLastLogin(ctx context.Context, userID uuid.UUID) error {
+func updateLastLogin(ctx context.Context, userID uuid.UUID, lastLoginAt time.Time) error {
 	query := `
 		UPDATE users
 		SET last_login_at = $1
 		WHERE id = $2
 	`
 
-	_, err := db.DB.ExecContext(ctx, query, time.Now(), userID)
+	_, err := db.DB.ExecContext(ctx, query, lastLoginAt, userID)
 	if err != nil {
 		return fmt.Errorf("failed to update last login: %w", err)
 	}

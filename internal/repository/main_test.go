@@ -13,6 +13,7 @@ import (
 var (
 	catRepo    *repository.CategoryRepository
 	itemRepo   *repository.ItemRepository
+	userRepo   *repository.PostgresUserRepository
 	repoUserID uuid.UUID
 )
 
@@ -29,6 +30,7 @@ func TestMain(m *testing.M) {
 
 	catRepo = repository.NewCategoryRepository(db.DB)
 	itemRepo = repository.NewItemRepository(db.DB)
+	userRepo = repository.NewPostgresUserRepository()
 	repoUserID = uuid.New()
 
 	_, err := db.DB.Exec(
