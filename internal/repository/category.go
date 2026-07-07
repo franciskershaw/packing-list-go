@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
@@ -60,7 +61,7 @@ func (r *CategoryRepository) GetCategoryByID(ctx context.Context, id string) (*m
 	row := r.db.QueryRowContext(ctx, query, id)
 	cat, err := scanCategory(row.Scan)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get category: %w", err)
