@@ -161,16 +161,6 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// userIDFromCtx retrieves the userId string set by AuthMiddleware.
-func userIDFromCtx(c *gin.Context) (string, bool) {
-	val, exists := c.Get("userId")
-	if !exists {
-		return "", false
-	}
-	id, ok := val.(string)
-	return id, ok && id != ""
-}
-
 // parseName reads and validates the "name" field from the JSON body.
 func parseName(c *gin.Context) (string, bool) {
 	var req struct {
