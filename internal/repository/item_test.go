@@ -6,15 +6,10 @@ import (
 	"testing"
 
 	"github.com/franciskershaw/packing-list-go/db"
-	"github.com/franciskershaw/packing-list-go/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// itemRepo is initialised in TestMain (category_test.go), guarded by the same
-// DATABASE_URL check.
-var itemRepo *repository.ItemRepository
 
 // createTestCategory inserts a category (system if userID == "") and returns its ID,
 // registering cleanup.
