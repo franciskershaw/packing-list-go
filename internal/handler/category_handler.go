@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/gin-gonic/gin"
@@ -170,20 +169,11 @@ func parseName(c *gin.Context) (string, bool) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return "", false
 	}
-	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
-		return "", false
-	}
-	if len(req.Name) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name must not exceed 100 characters"})
-		return "", false
-	}
-	return req.Name, true
+	return validateName(c, req.Name)
 }
 
 // isOwned returns true only when the category exists and belongs to the given user.
 // Returns false for nil (not found), system categories (UserID == nil), or wrong owner.
 func isOwned(category *models.Category, userID string) bool {
-	return category != nil && category.UserID != nil && category.UserID.String() == userID
+	return category != nil && isOwnedBy(category.UserID, userID)
 }

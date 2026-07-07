@@ -1,0 +1,23 @@
+package handler
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+// validateName trims and validates a name, writing the appropriate error response
+// and returning ok=false if invalid.
+func validateName(c *gin.Context, name string) (string, bool) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return "", false
+	}
+	if len(trimmed) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name must not exceed 100 characters"})
+		return "", false
+	}
+	return trimmed, true
+}

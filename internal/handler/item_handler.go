@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/gin-gonic/gin"
@@ -84,7 +83,7 @@ func (h *ItemHandler) Create(c *gin.Context) {
 		return
 	}
 
-	name, ok := validateItemName(c, req.Name)
+	name, ok := validateName(c, req.Name)
 	if !ok {
 		return
 	}
@@ -135,7 +134,7 @@ func (h *ItemHandler) Update(c *gin.Context) {
 
 	var namePtr *string
 	if req.Name != nil {
-		name, ok := validateItemName(c, *req.Name)
+		name, ok := validateName(c, *req.Name)
 		if !ok {
 			return
 		}
@@ -261,23 +260,8 @@ func (h *ItemHandler) validateAccessibleCategory(c *gin.Context, categoryID, use
 	return true
 }
 
-// validateItemName trims and validates a name, writing the appropriate error response
-// and returning ok=false if invalid.
-func validateItemName(c *gin.Context, name string) (string, bool) {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
-		return "", false
-	}
-	if len(trimmed) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name must not exceed 100 characters"})
-		return "", false
-	}
-	return trimmed, true
-}
-
 // isItemOwned returns true only when the item exists and belongs to the given user.
 // Returns false for nil (not found), system items (UserID == nil), or wrong owner.
 func isItemOwned(item *models.Item, userID string) bool {
-	return item != nil && item.UserID != nil && item.UserID.String() == userID
+	return item != nil && isOwnedBy(item.UserID, userID)
 }
