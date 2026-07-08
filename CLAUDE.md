@@ -40,6 +40,18 @@ API", "this service") instead.
   hand-rolled mocking style. Confirmed as an explicit override
   (2026-07-07), not an oversight.
 
+## Testing
+
+- **Handler tests** need no database. Run with: `go test ./internal/handler/...`
+- **Repository tests** are integration tests that hit the real Neon dev
+  database. Run with: `DATABASE_URL=$DATABASE_URL go test ./internal/repository/...`
+  Never spin up Docker or a local database instance for tests on this project.
+- **TDD in Go**: write the test file first, then create a minimal stub
+  (empty handler struct + method bodies that `panic("not implemented")`)
+  so the test file compiles. Run tests to confirm runtime failures before
+  implementing. Do not write implementation code until you have seen the
+  tests fail at runtime.
+
 ## Docs
 
 - `docs/specs/master-spec.md` — living spec + ticket backlog
