@@ -21,3 +21,17 @@ project kickoff.
 - **Standing rule going forward**: no ticket gets implementation code until
   it has a `docs/handoffs/PACK-NNN.md` and a failing test suite, per
   `~/.claude/CLAUDE.md`. PACK-008 is being fully redone under this rule.
+
+## 2026-07-08 — PACK-008 — Template CRUD shipped; self-review gap surfaced
+
+- CLAUDE.md's TDD guidance was unclear going in (fixed mid-ticket with an
+  explicit Testing section + Go stub-then-red-then-green rule). Separately,
+  obvious handler-level duplication (a repeated validation block) and a
+  misplaced helper (entity-specific vs. shared file) slipped through and
+  were only caught on the user's manual review, not flagged by me.
+- **Pattern**: After writing new handler/repo code, do a quick self-scan for
+  duplicated logic blocks and helper file-placement before presenting the
+  work as done — don't rely on the user's review or the once-per-ticket
+  `/code-review` to catch routine quality issues like this.
+- No other rework. The CLAUDE.md gap was resolved in-session, not carried
+  forward.

@@ -126,13 +126,10 @@ Status reflects the state of the code as of 2026-07-07.
   - `GET /templates/:id` — template with its items
   - `PATCH /templates/:id` — update name/description
   - `DELETE /templates/:id` — delete
-  - **Status: not started.** `internal/models/template.go` and
-    `internal/repository/template.go` exist but the repository methods are
-    unimplemented stubs (`errors.New("not implemented")`), there is no
-    handler, no tests, and nothing is wired into `main.go`. This is the
-    ticket that surfaced the gap in the AI-assisted process — it will be
-    rebuilt from a proper `grill-me` interview and handoff doc, test-first.
-    **This is the first ticket to go through the new pipeline.**
+  - **Status: Done.** Rebuilt test-first via `grill-me` and
+    `docs/handoffs/PACK-008.md` — the first ticket to go through the new
+    pipeline end to end (handoff doc → tests → repository → handler →
+    routes wired into `main.go`).
 - **PACK-009** — Managing items on a template.
   - `POST /templates/:id/items` — add an item with optional quantity/notes
   - `PATCH /templates/:id/items/:itemId` — update quantity/notes

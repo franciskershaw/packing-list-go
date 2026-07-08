@@ -100,3 +100,7 @@ Key decisions from the interview:
   Delete (success, invalid UUID, not found/wrong owner).
 - `requests/templates.http` — manual verification requests, mirroring
   `requests/categories.http` / `requests/items.http`.
+
+## Close-out
+
+Completed 2026-07-08. Retro entry in LESSONS.md.
