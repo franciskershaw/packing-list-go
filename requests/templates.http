@@ -1,0 +1,284 @@
+# Packing List API — Template Endpoints
+#
+# SETUP (do this once before running any request):
+#
+#   1. Start the server:       go run main.go
+#   2. Generate a token:       go run scripts/gen_token.go
+#   3. Paste the output below into @token
+#
+# Recommended order: run the requests top-to-bottom.
+# Templates have no system-level concept (every template is user-owned), so
+# unlike categories.http/items.http there's no "system row" setup step.
+
+@host  = http://localhost:8080
+@token =
+
+
+# ══════════════════════════════════════════
+#  GET /templates
+# ══════════════════════════════════════════
+
+### ✅ 200 — empty list before any templates exist
+GET {{host}}/templates
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+GET {{host}}/templates
+
+
+# ══════════════════════════════════════════
+#  POST /templates
+# ══════════════════════════════════════════
+
+### ✅ 201 — creates a template with name only (items: [])
+# @name createTemplate
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Weekend Hiking"
+}
+
+###
+
+### ✅ 201 — creates a template with name and description
+# @name createTemplateWithDescription
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Beach Trip",
+  "description": "Sun, sand, and sunscreen"
+}
+
+###
+
+### ❌ 400 — missing name
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "description": "No name here"
+}
+
+###
+
+### ❌ 400 — empty name
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
+###
+
+### ❌ 400 — name exceeds 100 characters
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 400 — description exceeds 500 characters
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Too Much Detail",
+  "description": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 409 — duplicate name (requires the "Weekend Hiking" POST above)
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Weekend Hiking"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/templates
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  GET /templates/:id
+#
+#  Requires the createTemplate POST above to have been sent first.
+# ══════════════════════════════════════════
+
+### ✅ 200 — returns the template with items: []
+GET {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid id (not a UUID)
+GET {{host}}/templates/not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — template does not exist
+GET {{host}}/templates/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+GET {{host}}/templates/{{createTemplate.response.body.id}}
+
+
+# ══════════════════════════════════════════
+#  PATCH /templates/:id
+#
+#  Requires the createTemplate POST above to have been sent first.
+# ══════════════════════════════════════════
+
+### ✅ 200 — renames the template
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Weekend Hiking (Renamed)"
+}
+
+###
+
+### ✅ 200 — updates description only, name unchanged
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "description": "Now with a description"
+}
+
+###
+
+### ✅ 200 — description: "" clears it to an empty string (not null)
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "description": ""
+}
+
+###
+
+### ❌ 400 — neither name nor description provided
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — name too long
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 409 — rename to a name already used by another of the caller's templates
+#          (requires the createTemplateWithDescription POST above to have
+#          been sent first, so "Beach Trip" exists)
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Beach Trip"
+}
+
+###
+
+### ❌ 404 — template does not exist
+PATCH {{host}}/templates/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Anything"
+}
+
+###
+
+### 🔒 401 — no token
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  DELETE /templates/:id
+#
+#  409-if-in-use does NOT apply to templates (unlike categories/items) —
+#  deletion is unconditional even if a packing list references this
+#  template (packing_lists.template_id is set to NULL, not blocked). That
+#  can't be exercised end-to-end here yet since PACK-010 (packing list
+#  creation) doesn't exist; once it does, add a request that creates a list
+#  from this template, then retry this DELETE and confirm it still 204s.
+# ══════════════════════════════════════════
+
+### ✅ 204 — deletes the template (no response body)
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — already deleted (or never existed)
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid id (not a UUID)
+DELETE {{host}}/templates/not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+DELETE {{host}}/templates/{{createTemplateWithDescription.response.body.id}}
+
+
+# ══════════════════════════════════════════
+#  Cleanup
+# ══════════════════════════════════════════
+
+### 204 — delete the remaining "Beach Trip" template
+DELETE {{host}}/templates/{{createTemplateWithDescription.response.body.id}}
+Authorization: Bearer {{token}}
