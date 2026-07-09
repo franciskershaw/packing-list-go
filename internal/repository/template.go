@@ -52,6 +52,13 @@ func (r *TemplateRepository) GetTemplateByID(ctx context.Context, id string) (*m
 		}
 		return nil, fmt.Errorf("failed to get template: %w", err)
 	}
+
+	items, err := r.GetTemplateItems(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get template items: %w", err)
+	}
+	tmpl.Items = items
+
 	return tmpl, nil
 }
 
@@ -118,8 +125,9 @@ func (r *TemplateRepository) TemplateNameExistsForUser(ctx context.Context, user
 }
 
 // scanTemplate abstracts the nullable description scan pattern for a single
-// template row. Items is always populated as an empty slice — the join
-// against template_items is PACK-009's job.
+// template row. Items is left as an empty slice — callers that need real
+// items (GetTemplateByID) populate it via a second GetTemplateItems query;
+// GetTemplates (list) intentionally leaves it empty.
 func scanTemplate(scan func(...any) error) (*models.Template, error) {
 	var (
 		id              uuid.UUID
