@@ -21,8 +21,7 @@ func InitDB() error {
 	// Get Neon connection string
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
-		fmt.Fprintf(os.Stderr, "DATABASE_URL not set \n")
-		os.Exit(1)
+		return fmt.Errorf("DATABASE_URL not set")
 	}
 
 	// Open the database
