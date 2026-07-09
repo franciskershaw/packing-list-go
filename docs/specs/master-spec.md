@@ -166,3 +166,28 @@ Status reflects the state of the code as of 2026-07-07.
   - `POST /lists/:id/pack-all` — mark every item packed
   - `POST /lists/:id/unpack-all` — reset every item to unpacked
   - **Status: not started.**
+
+### Epic 6: Codebase Health & Hardening
+
+- **PACK-014** — Mid-project review findings (security, config wiring, test
+  quality, naming/duplication cleanup).
+  - Security: refresh-token cookie missing `Secure`/`SameSite`; OAuth CSRF
+    state uses `math/rand` instead of `crypto/rand`.
+  - Architecture: `config.Config` only partially threaded through — `db.go`
+    and `internal/auth/jwt.go` re-read env vars directly instead of
+    accepting parsed config.
+  - Test quality: `internal/auth/google_test.go` makes real network calls
+    to Google's OIDC discovery endpoint.
+  - Consistency: `internal/repository/user.go` doesn't follow the
+    `errors.Is(sql.ErrNoRows) → nil, nil` convention every other repo uses;
+    `UserId`/`userId` casing inconsistent with `UserID` used everywhere
+    else; `parseName` duplicated across category/item/template handlers
+    instead of shared; hand-rolled `contains()` helper duplicates
+    `strings.Contains`; `go.mod` has every dependency marked `// indirect`.
+  - **Status: Not started.** Draft handoff at
+    `docs/handoffs/PACK-014.md` — this ticket has **not** been through
+    `grill-me` yet. The draft preserves the full 2026-07-09 review output
+    (an external agent's assessment plus an independent verification pass)
+    so none of it is lost, but it is not scoped into acceptance criteria —
+    that interview may also decide to split this into more than one ticket
+    rather than shipping it as a single bundled change.

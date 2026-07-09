@@ -57,3 +57,15 @@ API", "this service") instead.
 - `docs/specs/master-spec.md` — living spec + ticket backlog
 - `docs/handoffs/PACK-NNN.md` — one per ticket
 - `LESSONS.md` — retro log, reviewed each kickoff/grill-me
+
+## Off-scope findings during feature work
+
+The global rule is to flag, not silently fix, anything outside a ticket's
+stated scope. In this project, that flag has a home: suggest adding it to
+**Epic 6 ("Codebase Health & Hardening")** in `docs/specs/master-spec.md`
+rather than just mentioning it and letting it evaporate once the
+conversation moves on. That epic exists specifically as the durable
+landing spot for security/architecture/consistency findings that surface
+mid-feature — currently drafted at `docs/handoffs/PACK-014.md`, not yet
+scoped via `grill-me`. This applies whether the finding comes from Claude's
+own review or a human/other-agent review shared in chat.
