@@ -135,7 +135,9 @@ Status reflects the state of the code as of 2026-07-07.
   - `PATCH /templates/:id/items/:itemId` — update quantity/notes
   - `DELETE /templates/:id/items/:itemId` — remove
   - `POST /templates/:id/items/bulk` — add every item from a given category
-  - **Status: not started.** Blocked on PACK-008.
+  - **Status: Done.** `docs/handoffs/PACK-009.md` — real `template_items`
+    join added to `GET /templates/:id`; `GET /templates` (list) still
+    returns `items: []` by design.
 
 ### Epic 5: Packing Lists
 

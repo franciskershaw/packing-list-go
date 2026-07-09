@@ -145,3 +145,7 @@ Key decisions from the interview:
   item + category setup section, mirroring how `requests/items.http`
   duplicates category setup rather than depending on
   `requests/categories.http`.
+
+## Close-out
+
+Completed 2026-07-09. Retro entry in LESSONS.md.
