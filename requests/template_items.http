@@ -13,7 +13,7 @@
 # references the captured IDs.
 
 @host  = http://localhost:8080
-@token =
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM2Mjc3NzMsImlhdCI6MTc4MzYyNjg3M30.S7AF_NHVJFfVnBRI3VE2779dCArFAcum6G8i7Kr-i7w
 
 
 # ══════════════════════════════════════════
@@ -369,6 +369,29 @@ Content-Type: application/json
 # ══════════════════════════════════════════
 
 ### ✅ 200 — both items now appear in the items array (no duplication)
+GET {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
+#  PATCH /templates/:id — confirm items survive a template-level update
+#  (regression check: UpdateTemplate used to always return items: [], even
+#  when the template had real items attached, because it never re-fetched
+#  them after the UPDATE — fixed to match GetTemplateByID's behavior)
+# ══════════════════════════════════════════
+
+### ✅ 200 — renames the template; both items must still be present in the response
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Template Items Test — Renamed"
+}
+
+###
+
+### ✅ 200 — GET confirms the rename didn't drop the items either
 GET {{host}}/templates/{{createTemplate.response.body.id}}
 Authorization: Bearer {{token}}
 

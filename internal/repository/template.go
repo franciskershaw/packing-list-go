@@ -93,6 +93,13 @@ func (r *TemplateRepository) UpdateTemplate(ctx context.Context, id string, name
 	if err != nil {
 		return nil, fmt.Errorf("failed to update template: %w", err)
 	}
+
+	items, err := r.GetTemplateItems(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get template items: %w", err)
+	}
+	tmpl.Items = items
+
 	return tmpl, nil
 }
 

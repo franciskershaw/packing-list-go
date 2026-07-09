@@ -211,6 +211,26 @@ func TestUpdateTemplate_Both(t *testing.T) {
 	assert.Equal(t, newDesc, *updated.Description)
 }
 
+func TestUpdateTemplate_PreservesItems(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemID := createTestItem(t, catID)
+	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-preserve-items-"+uuid.NewString(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
+
+	_, err = templateRepo.AddTemplateItem(ctx, created.ID.String(), itemID.String(), 2, nil)
+	require.NoError(t, err)
+
+	newName := "repo-test-tmpl-preserve-items-new-" + uuid.NewString()
+	updated, err := templateRepo.UpdateTemplate(ctx, created.ID.String(), &newName, nil)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, newName, updated.Name)
+	require.Len(t, updated.Items, 1, "expected the attached item to survive the update, not be dropped from the response")
+	assert.Equal(t, itemID, updated.Items[0].ItemID)
+}
+
 func TestDeleteTemplate(t *testing.T) {
 	ctx := context.Background()
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-del-"+uuid.NewString(), nil)
