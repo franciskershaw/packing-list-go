@@ -2,18 +2,19 @@ package db
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
+
+//go:embed migrations
+var migrationsFS embed.FS
 
 var DB *sql.DB
 
@@ -49,16 +50,12 @@ func InitDB() error {
 }
 
 func runMigrations() error {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return fmt.Errorf("failed to determine migrations path")
+	sourceDriver, err := iofs.New(migrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to create migration source: %w", err)
 	}
-	migrationsPath := filepath.Join(filepath.Dir(thisFile), "migrations")
 
-	m, err := migrate.New(
-		"file://"+migrationsPath,
-		os.Getenv("DATABASE_URL"),
-	)
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return fmt.Errorf("failed to create migrator: %w", err)
 	}
