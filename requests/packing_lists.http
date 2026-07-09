@@ -13,7 +13,7 @@
 # references the captured IDs.
 
 @host  = http://localhost:8080
-@token =
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM2MjU5NTgsImlhdCI6MTc4MzYyNTA1OH0.TFrRuv004OmvxaeSIKuv6q3eTiwhL4nbgGCRX_YW6tA
 
 
 # ══════════════════════════════════════════
@@ -193,12 +193,18 @@ Content-Type: application/json
 # ══════════════════════════════════════════
 #
 #  There is no DELETE /lists/:id yet (PACK-011) — packing lists created here
-#  can't be cleaned up via the API. Once PACK-011 ships, add DELETE requests
-#  here for createListNameOnly / createListFromTemplate / the eventDate and
-#  error-path lists left behind. The template + item + category setup above
-#  should still be cleaned up manually in the meantime:
+#  can't be cleaned up via the API. That includes the "Seeded From Template"
+#  list above, which copied createItem into packing_list_items — and
+#  ItemIsInUse blocks deleting an item referenced by any non-archived list
+#  (see PACK-007's TestItemIsInUse_ActiveListReference), so the item (and
+#  therefore its category) can't be cleaned up either until that list can be
+#  removed. Once PACK-011 ships DELETE /lists/:id, delete createListNameOnly /
+#  createListFromTemplate / the eventDate and error-path lists first, then
+#  re-run the item/category deletes below and confirm they now 204.
 
-### 204 — remove the item from the template first (items.http/template_items.http precedent)
+### 204 — remove the item from the template (this part still succeeds — it
+#          only clears the template_items reference, not the one from the
+#          seeded packing list)
 DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
 Authorization: Bearer {{token}}
 
@@ -210,12 +216,14 @@ Authorization: Bearer {{token}}
 
 ###
 
-### 204 — delete the item
+### ❌ 409 — "item is in use and cannot be deleted" (expected for now — see
+#          note above; blocked by the still-live "Seeded From Template" list)
 DELETE {{host}}/items/{{createItem.response.body.id}}
 Authorization: Bearer {{token}}
 
 ###
 
-### 204 — delete the category
+### ❌ 409 — "category has items and cannot be deleted" (expected for now —
+#          the item above couldn't be removed, so the category still has it)
 DELETE {{host}}/categories/{{createCategory.response.body.id}}
 Authorization: Bearer {{token}}

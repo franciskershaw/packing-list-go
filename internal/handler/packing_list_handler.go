@@ -2,9 +2,12 @@ package handler
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type PackingListRepository interface {
@@ -28,5 +31,56 @@ func NewPackingListHandler(repo PackingListRepository, templateRepo TemplateLook
 }
 
 func (h *PackingListHandler) Create(c *gin.Context) {
-	panic("not implemented")
+	userID, ok := userIDFromCtx(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		Name       string  `json:"name"`
+		EventDate  *string `json:"eventDate"`
+		TemplateID *string `json:"templateId"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	name, ok := validateName(c, req.Name)
+	if !ok {
+		return
+	}
+
+	if req.EventDate != nil {
+		if _, err := time.Parse("2006-01-02", *req.EventDate); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventDate"})
+			return
+		}
+	}
+
+	if req.TemplateID != nil {
+		if _, err := uuid.Parse(*req.TemplateID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid templateId"})
+			return
+		}
+
+		template, err := h.templateRepo.GetTemplateByID(c.Request.Context(), *req.TemplateID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template"})
+			return
+		}
+		if !isTemplateOwned(template, userID) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "templateId not accessible"})
+			return
+		}
+	}
+
+	created, err := h.repo.CreatePackingList(c.Request.Context(), userID, name, req.EventDate, req.TemplateID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create packing list"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, created)
 }

@@ -67,7 +67,9 @@ func main() {
 	categoryHandler := handler.NewCategoryHandler(repository.NewCategoryRepository(db.DB))
 	itemRepo := repository.NewItemRepository(db.DB)
 	itemHandler := handler.NewItemHandler(itemRepo)
-	templateHandler := handler.NewTemplateHandler(repository.NewTemplateRepository(db.DB), itemRepo)
+	templateRepo := repository.NewTemplateRepository(db.DB)
+	templateHandler := handler.NewTemplateHandler(templateRepo, itemRepo)
+	packingListHandler := handler.NewPackingListHandler(repository.NewPackingListRepository(db.DB), templateRepo)
 	authed := server.Group("/")
 	authed.Use(middleware.AuthMiddleware())
 	{
@@ -90,9 +92,9 @@ func main() {
 		authed.PATCH("/templates/:id/items/:itemId", templateHandler.UpdateItem)
 		authed.DELETE("/templates/:id/items/:itemId", templateHandler.RemoveItem)
 		authed.POST("/templates/:id/items/bulk", templateHandler.BulkAddItems)
-	}
 
-	// TODO: Register packing list routes
+		authed.POST("/lists", packingListHandler.Create)
+	}
 
 	if err := server.Run(":" + cfg.Port); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
