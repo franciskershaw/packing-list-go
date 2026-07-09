@@ -1,0 +1,440 @@
+# Packing List API — Template Item Endpoints
+#
+# SETUP (do this once before running any request):
+#
+#   1. Start the server:       go run main.go
+#   2. Generate a token:       go run scripts/gen_token.go
+#   3. Paste the output below into @token
+#
+# Recommended order: run the requests top-to-bottom.
+# This file duplicates its own template + item + category setup (mirroring
+# how items.http duplicates category setup rather than depending on
+# categories.http) — send the setup section first, then everything else
+# references the captured IDs.
+
+@host  = http://localhost:8080
+@token =
+
+
+# ══════════════════════════════════════════
+#  Setup — a template, a category, and two items to attach to it
+# ══════════════════════════════════════════
+
+### create the template items will be attached to
+# @name createTemplate
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Template Items Test"
+}
+
+###
+
+### create the category items will be created under
+# @name createCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Template Items Test — Category"
+}
+
+###
+
+### create the first item — this is the one exercised by the single-item endpoints below
+# @name createItem
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Template Items Test — Item One",
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+###
+
+### create a second item in the same category — used by the bulk-add tests
+# @name createItemTwo
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Template Items Test — Item Two",
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+
+# ══════════════════════════════════════════
+#  POST /templates/:id/items
+# ══════════════════════════════════════════
+
+### ✅ 201 — attaches the item with an explicit quantity and notes
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}",
+  "quantity": 3,
+  "notes": "pack the waterproof ones"
+}
+
+###
+
+### ❌ 409 — item is already on the template (requires the 201 above)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing itemId
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — invalid itemId (not a UUID)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "not-a-uuid"
+}
+
+###
+
+### ❌ 400 — itemId does not exist / not accessible
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### ❌ 400 — quantity out of range (too low)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItemTwo.response.body.id}}",
+  "quantity": 0
+}
+
+###
+
+### ❌ 400 — quantity out of range (too high)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItemTwo.response.body.id}}",
+  "quantity": 1000
+}
+
+###
+
+### ❌ 400 — notes exceed 200 characters
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItemTwo.response.body.id}}",
+  "notes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 404 — template does not exist
+POST {{host}}/templates/00000000-0000-0000-0000-000000000000/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItemTwo.response.body.id}}"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+
+{
+  "itemId": "{{createItemTwo.response.body.id}}"
+}
+
+
+# ══════════════════════════════════════════
+#  PATCH /templates/:id/items/:itemId
+#
+#  Uses the item attached by the first POST above.
+# ══════════════════════════════════════════
+
+### ✅ 200 — updates quantity only
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "quantity": 5
+}
+
+###
+
+### ✅ 200 — updates notes only
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "notes": "actually pack the blue ones"
+}
+
+###
+
+### ✅ 200 — notes: "" clears it to an empty string (not null)
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "notes": ""
+}
+
+###
+
+### ❌ 400 — neither quantity nor notes provided
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — quantity out of range
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "quantity": 1000
+}
+
+###
+
+### ❌ 404 — template does not exist
+PATCH {{host}}/templates/00000000-0000-0000-0000-000000000000/items/{{createItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "quantity": 2
+}
+
+###
+
+### ❌ 404 — item is not on this template
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItemTwo.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "quantity": 2
+}
+
+###
+
+### ❌ 400 — invalid itemId (not a UUID)
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/not-a-uuid
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "quantity": 2
+}
+
+###
+
+### 🔒 401 — no token
+PATCH {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Content-Type: application/json
+
+{
+  "quantity": 2
+}
+
+
+# ══════════════════════════════════════════
+#  POST /templates/:id/items/bulk
+# ══════════════════════════════════════════
+
+### ✅ 201 — adds every accessible item in the category not already on the
+#          template (createItem is already attached, so only createItemTwo
+#          should come back)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+###
+
+### ✅ 201 — running it again returns [] (everything in the category is now attached)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing categoryId
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — invalid categoryId (not a UUID)
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "not-a-uuid"
+}
+
+###
+
+### ❌ 400 — categoryId does not exist / not accessible
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### ❌ 404 — template does not exist
+POST {{host}}/templates/00000000-0000-0000-0000-000000000000/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+
+{
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+
+# ══════════════════════════════════════════
+#  GET /templates/:id — confirm attached items show up on the detail view
+# ══════════════════════════════════════════
+
+### ✅ 200 — both items now appear in the items array (no duplication)
+GET {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
+#  DELETE /templates/:id/items/:itemId
+# ══════════════════════════════════════════
+
+### ✅ 204 — removes the second item from the template (no response body)
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — already removed
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — template does not exist
+DELETE {{host}}/templates/00000000-0000-0000-0000-000000000000/items/{{createItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid itemId (not a UUID)
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+
+
+# ══════════════════════════════════════════
+#  Cleanup — items can't be deleted while attached to a template
+#  (DELETE /items/:id returns 409 if ItemIsInUse), so remove the remaining
+#  template item first, then the template, then the items, then the category.
+# ══════════════════════════════════════════
+
+### 204 — remove the last item from the template
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete the template
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete item one
+DELETE {{host}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete item two
+DELETE {{host}}/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete the category
+DELETE {{host}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{token}}

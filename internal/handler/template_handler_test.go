@@ -72,7 +72,8 @@ func (m *MockTemplateRepository) TemplateNameExistsForUser(ctx context.Context, 
 
 // --- Helpers ---
 
-func newTemplateTestRouter(h *handler.TemplateHandler) *gin.Engine {
+func newTemplateTestRouter(repo handler.TemplateRepository, itemRepo handler.ItemLookupRepository) *gin.Engine {
+	h := handler.NewTemplateHandler(repo, itemRepo)
 	r := gin.New()
 	authed := r.Group("/")
 	authed.Use(middleware.AuthMiddleware())
@@ -81,6 +82,10 @@ func newTemplateTestRouter(h *handler.TemplateHandler) *gin.Engine {
 	authed.GET("/templates/:id", h.GetByID)
 	authed.PATCH("/templates/:id", h.Update)
 	authed.DELETE("/templates/:id", h.Delete)
+	authed.POST("/templates/:id/items", h.AddItem)
+	authed.PATCH("/templates/:id/items/:itemId", h.UpdateItem)
+	authed.DELETE("/templates/:id/items/:itemId", h.RemoveItem)
+	authed.POST("/templates/:id/items/bulk", h.BulkAddItems)
 	return r
 }
 
@@ -100,8 +105,7 @@ func TestTemplateList_HappyPath(t *testing.T) {
 	templates := []models.Template{*ownedTemplate()}
 	repo.On("GetTemplates", mock.Anything, testTemplateUserID).Return(templates, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -121,8 +125,7 @@ func TestTemplateList_EmptyResult(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	repo.On("GetTemplates", mock.Anything, testTemplateUserID).Return([]models.Template{}, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -136,8 +139,7 @@ func TestTemplateList_EmptyResult(t *testing.T) {
 
 func TestTemplateList_Unauthorized(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates", nil)
 	w := httptest.NewRecorder()
@@ -154,8 +156,7 @@ func TestTemplateCreate_Valid(t *testing.T) {
 	repo.On("TemplateNameExistsForUser", mock.Anything, testTemplateUserID, "My Template", (*string)(nil)).Return(false, nil)
 	repo.On("CreateTemplate", mock.Anything, testTemplateUserID, "My Template", (*string)(nil)).Return(created, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]string{"name": "My Template"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -178,8 +179,7 @@ func TestTemplateCreate_WithDescription(t *testing.T) {
 	repo.On("TemplateNameExistsForUser", mock.Anything, testTemplateUserID, "My Template", (*string)(nil)).Return(false, nil)
 	repo.On("CreateTemplate", mock.Anything, testTemplateUserID, "My Template", &desc).Return(created, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]string{"name": "My Template", "description": desc}))
 	req.Header.Set("Content-Type", "application/json")
@@ -196,8 +196,7 @@ func TestTemplateCreate_WithDescription(t *testing.T) {
 
 func TestTemplateCreate_MissingName(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]any{}))
 	req.Header.Set("Content-Type", "application/json")
@@ -210,8 +209,7 @@ func TestTemplateCreate_MissingName(t *testing.T) {
 
 func TestTemplateCreate_NameTooLong(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	longName := strings.Repeat("a", 101)
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]string{"name": longName}))
@@ -225,8 +223,7 @@ func TestTemplateCreate_NameTooLong(t *testing.T) {
 
 func TestTemplateCreate_DescriptionTooLong(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	longDesc := strings.Repeat("a", 501)
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]string{"name": "Valid Name", "description": longDesc}))
@@ -242,8 +239,7 @@ func TestTemplateCreate_DuplicateName(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	repo.On("TemplateNameExistsForUser", mock.Anything, testTemplateUserID, "Existing", (*string)(nil)).Return(true, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]string{"name": "Existing"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -257,8 +253,7 @@ func TestTemplateCreate_DuplicateName(t *testing.T) {
 
 func TestTemplateCreate_Unauthorized(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/templates", jsonBody(t, map[string]string{"name": "Test"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -275,8 +270,7 @@ func TestTemplateGetByID_Valid(t *testing.T) {
 	tmpl := ownedTemplate()
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates/"+testTemplateID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -293,8 +287,7 @@ func TestTemplateGetByID_Valid(t *testing.T) {
 
 func TestTemplateGetByID_InvalidUUID(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates/not-a-uuid", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -308,8 +301,7 @@ func TestTemplateGetByID_NotFound(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(nil, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates/"+testTemplateID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -330,8 +322,7 @@ func TestTemplateGetByID_OtherUsersTemplate(t *testing.T) {
 	}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates/"+testTemplateID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -344,8 +335,7 @@ func TestTemplateGetByID_OtherUsersTemplate(t *testing.T) {
 
 func TestTemplateGetByID_Unauthorized(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/templates/"+testTemplateID, nil)
 	w := httptest.NewRecorder()
@@ -367,8 +357,7 @@ func TestTemplateUpdate_NameOnly(t *testing.T) {
 	repo.On("TemplateNameExistsForUser", mock.Anything, testTemplateUserID, "New Name", &excludeID).Return(false, nil)
 	repo.On("UpdateTemplate", mock.Anything, testTemplateID, mock.MatchedBy(func(n *string) bool { return n != nil && *n == "New Name" }), (*string)(nil)).Return(updated, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -397,8 +386,7 @@ func TestTemplateUpdate_DescriptionOnly_NoNameCheck(t *testing.T) {
 	// relies on mock.Mock panicking on an unexpected call.
 	repo.On("UpdateTemplate", mock.Anything, testTemplateID, (*string)(nil), mock.MatchedBy(func(d *string) bool { return d != nil && *d == newDesc })).Return(updated, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"description": newDesc}))
 	req.Header.Set("Content-Type", "application/json")
@@ -412,8 +400,7 @@ func TestTemplateUpdate_DescriptionOnly_NoNameCheck(t *testing.T) {
 
 func TestTemplateUpdate_NeitherFieldProvided(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]any{}))
 	req.Header.Set("Content-Type", "application/json")
@@ -426,8 +413,7 @@ func TestTemplateUpdate_NeitherFieldProvided(t *testing.T) {
 
 func TestTemplateUpdate_NameTooLong(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	longName := strings.Repeat("a", 101)
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"name": longName}))
@@ -441,8 +427,7 @@ func TestTemplateUpdate_NameTooLong(t *testing.T) {
 
 func TestTemplateUpdate_DescriptionTooLong(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	longDesc := strings.Repeat("a", 501)
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"description": longDesc}))
@@ -458,8 +443,7 @@ func TestTemplateUpdate_NotFound(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(nil, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -481,8 +465,7 @@ func TestTemplateUpdate_OtherUsersTemplate(t *testing.T) {
 	}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -502,8 +485,7 @@ func TestTemplateUpdate_DuplicateName(t *testing.T) {
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
 	repo.On("TemplateNameExistsForUser", mock.Anything, testTemplateUserID, "Taken Name", &excludeID).Return(true, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"name": "Taken Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -517,8 +499,7 @@ func TestTemplateUpdate_DuplicateName(t *testing.T) {
 
 func TestTemplateUpdate_InvalidUUID(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/not-a-uuid", jsonBody(t, map[string]string{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -531,8 +512,7 @@ func TestTemplateUpdate_InvalidUUID(t *testing.T) {
 
 func TestTemplateUpdate_Unauthorized(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID, jsonBody(t, map[string]string{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -550,8 +530,7 @@ func TestTemplateDelete_Valid(t *testing.T) {
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
 	repo.On("DeleteTemplate", mock.Anything, testTemplateID).Return(nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -566,8 +545,7 @@ func TestTemplateDelete_NotFound(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(nil, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -588,8 +566,7 @@ func TestTemplateDelete_OtherUsersTemplate(t *testing.T) {
 	}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
 
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -602,8 +579,7 @@ func TestTemplateDelete_OtherUsersTemplate(t *testing.T) {
 
 func TestTemplateDelete_InvalidUUID(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/templates/not-a-uuid", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
@@ -615,8 +591,7 @@ func TestTemplateDelete_InvalidUUID(t *testing.T) {
 
 func TestTemplateDelete_Unauthorized(t *testing.T) {
 	repo := &MockTemplateRepository{}
-	h := handler.NewTemplateHandler(repo)
-	r := newTemplateTestRouter(h)
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID, nil)
 	w := httptest.NewRecorder()
