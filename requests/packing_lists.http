@@ -1,0 +1,221 @@
+# Packing List API — Packing List Creation
+#
+# SETUP (do this once before running any request):
+#
+#   1. Start the server:       go run main.go
+#   2. Generate a token:       go run scripts/gen_token.go
+#   3. Paste the output below into @token
+#
+# Recommended order: run the requests top-to-bottom.
+# This file duplicates its own template + item + category setup (mirroring
+# how template_items.http duplicates setup rather than depending on other
+# .http files) — send the setup section first, then everything else
+# references the captured IDs.
+
+@host  = http://localhost:8080
+@token =
+
+
+# ══════════════════════════════════════════
+#  Setup — a template with one item attached, to seed a list from
+# ══════════════════════════════════════════
+
+### create the template a list will be seeded from
+# @name createTemplate
+POST {{host}}/templates
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Packing List Test — Template"
+}
+
+###
+
+### create the category the seed item lives in
+# @name createCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Packing List Test — Category"
+}
+
+###
+
+### create the seed item
+# @name createItem
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Packing List Test — Item",
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+###
+
+### attach the item to the template
+POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}",
+  "quantity": 2,
+  "notes": "pack spares"
+}
+
+
+# ══════════════════════════════════════════
+#  POST /lists
+# ══════════════════════════════════════════
+
+### ✅ 201 — name only, no eventDate/templateId — items: []
+# @name createListNameOnly
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Weekend Hiking"
+}
+
+###
+
+### ✅ 201 — name + eventDate
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Beach Trip",
+  "eventDate": "2026-08-01"
+}
+
+###
+
+### ✅ 201 — templateId seeds the list's items from the template
+# @name createListFromTemplate
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Seeded From Template",
+  "templateId": "{{createTemplate.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing name
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "eventDate": "2026-08-01"
+}
+
+###
+
+### ❌ 400 — empty name
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
+###
+
+### ❌ 400 — name exceeds 100 characters
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
+}
+
+###
+
+### ❌ 400 — invalid eventDate format
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bad Date List",
+  "eventDate": "08-01-2026"
+}
+
+###
+
+### ❌ 400 — invalid templateId (not a UUID)
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bad Template List",
+  "templateId": "not-a-uuid"
+}
+
+###
+
+### ❌ 400 — templateId does not exist / not owned by caller
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Missing Template List",
+  "templateId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/lists
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  Cleanup
+# ══════════════════════════════════════════
+#
+#  There is no DELETE /lists/:id yet (PACK-011) — packing lists created here
+#  can't be cleaned up via the API. Once PACK-011 ships, add DELETE requests
+#  here for createListNameOnly / createListFromTemplate / the eventDate and
+#  error-path lists left behind. The template + item + category setup above
+#  should still be cleaned up manually in the meantime:
+
+### 204 — remove the item from the template first (items.http/template_items.http precedent)
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete the template
+DELETE {{host}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete the item
+DELETE {{host}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — delete the category
+DELETE {{host}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{token}}
