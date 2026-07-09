@@ -145,7 +145,9 @@ Status reflects the state of the code as of 2026-07-07.
   - `POST /lists` — name + optional `event_date`; optional `template_id`
     copies that template's items onto the list at creation time; list is
     owned by the authenticated user
-  - **Status: not started.**
+  - **Status: Done.** `docs/handoffs/PACK-010.md` — response includes the
+    seeded items flat (grouping by category is PACK-011's job); `sortOrder`/
+    `archivedAt` intentionally not exposed yet.
 - **PACK-011** — Packing list management.
   - `GET /lists` — active (non-archived) lists for the user
   - `GET /lists?archived=true` — archived lists

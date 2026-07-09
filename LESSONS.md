@@ -54,3 +54,11 @@ project kickoff.
   checkpoint.
 - No design rework — the repository/handler split, ownership checks, and
   validation all matched the handoff doc on the first pass.
+
+## 2026-07-09 — PACK-010 — Packing list creation shipped; smooth ticket
+
+- No rework worth noting. The test-first pause (per the PACK-009 lesson
+  above) held this time. Only wrinkle was `requests/packing_lists.http`
+  asserting 204 on cleanup deletes that a later request's own side effect
+  (seeding `packing_list_items` from a template) actually blocks with 409 —
+  caught and fixed post-review, not a code bug.

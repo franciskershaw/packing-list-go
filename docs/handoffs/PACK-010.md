@@ -121,3 +121,7 @@ Key decisions from the interview:
   own template + item + category setup section (mirroring how
   `template_items.http` duplicates setup rather than depending on other
   `.http` files).
+
+## Close-out
+
+Completed 2026-07-09. Retro entry in LESSONS.md.
