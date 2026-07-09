@@ -237,9 +237,16 @@ func (h *ItemHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// categoryAccessibilityChecker is the minimal capability validateAccessibleCategory
+// needs, satisfied by both ItemRepository and the narrower ItemLookupRepository
+// (so TemplateHandler's item-on-template endpoints can reuse this validator too).
+type categoryAccessibilityChecker interface {
+	CategoryIsAccessible(ctx context.Context, categoryID, userID string) (bool, error)
+}
+
 // validateAccessibleCategory checks the categoryId is a valid UUID and accessible to userID,
 // writing the appropriate error response and returning false if not.
-func validateAccessibleCategory(c *gin.Context, repo ItemRepository, categoryID, userID string) bool {
+func validateAccessibleCategory(c *gin.Context, repo categoryAccessibilityChecker, categoryID, userID string) bool {
 	if categoryID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "categoryId is required"})
 		return false

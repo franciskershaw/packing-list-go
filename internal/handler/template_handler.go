@@ -16,14 +16,31 @@ type TemplateRepository interface {
 	UpdateTemplate(ctx context.Context, id string, name *string, description *string) (*models.Template, error)
 	DeleteTemplate(ctx context.Context, id string) error
 	TemplateNameExistsForUser(ctx context.Context, userID, name string, excludeID *string) (bool, error)
+	AddTemplateItem(ctx context.Context, templateID, itemID string, quantity int, notes *string) (*models.TemplateItem, error)
+	UpdateTemplateItem(ctx context.Context, templateID, itemID string, quantity *int, notes *string) (*models.TemplateItem, error)
+	RemoveTemplateItem(ctx context.Context, templateID, itemID string) error
+	TemplateItemExists(ctx context.Context, templateID, itemID string) (bool, error)
+	GetTemplateItems(ctx context.Context, templateID string) ([]models.TemplateItem, error)
+}
+
+// ItemLookupRepository exposes the subset of ItemRepository's methods that
+// TemplateHandler needs for item-on-template operations — a small,
+// handler-defined interface reused from the concrete ItemRepository rather
+// than re-implementing item lookup/accessibility queries inside
+// TemplateRepository.
+type ItemLookupRepository interface {
+	GetItemByID(ctx context.Context, id string) (*models.Item, error)
+	GetItems(ctx context.Context, userID string, categoryID *string, search *string) ([]models.Item, error)
+	CategoryIsAccessible(ctx context.Context, categoryID, userID string) (bool, error)
 }
 
 type TemplateHandler struct {
-	repo TemplateRepository
+	repo     TemplateRepository
+	itemRepo ItemLookupRepository
 }
 
-func NewTemplateHandler(repo TemplateRepository) *TemplateHandler {
-	return &TemplateHandler{repo: repo}
+func NewTemplateHandler(repo TemplateRepository, itemRepo ItemLookupRepository) *TemplateHandler {
+	return &TemplateHandler{repo: repo, itemRepo: itemRepo}
 }
 
 func (h *TemplateHandler) List(c *gin.Context) {
