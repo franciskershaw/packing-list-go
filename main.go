@@ -94,6 +94,7 @@ func main() {
 		authed.POST("/templates/:id/items/bulk", templateHandler.BulkAddItems)
 
 		authed.POST("/lists", packingListHandler.Create)
+		authed.GET("/lists", packingListHandler.List)
 	}
 
 	if err := server.Run(":" + cfg.Port); err != nil {

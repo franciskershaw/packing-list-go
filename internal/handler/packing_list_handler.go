@@ -89,10 +89,25 @@ func (h *PackingListHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, created)
 }
 
-// List handles GET /lists and GET /lists?archived=true. PACK-011 stub, not
-// yet implemented.
+// List handles GET /lists and GET /lists?archived=true. Only the literal
+// string "true" selects the archived branch — any other value, or the
+// param's absence, falls back to active lists.
 func (h *PackingListHandler) List(c *gin.Context) {
-	panic("not implemented")
+	userID, ok := userIDFromCtx(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	archived := c.Query("archived") == "true"
+
+	lists, err := h.repo.GetPackingLists(c.Request.Context(), userID, archived)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing lists"})
+		return
+	}
+
+	c.JSON(http.StatusOK, lists)
 }
 
 // GetByID handles GET /lists/:id. PACK-011 stub, not yet implemented.
