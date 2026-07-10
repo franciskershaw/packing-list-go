@@ -105,3 +105,7 @@ Key decisions from the interview:
 - `internal/auth/google.go` (**modified**, not a test file): extract
   `newGoogleOAuthManager(config, verifier)`.
 - No new `.http` file (see Non-goals).
+
+## Close-out
+
+Completed 2026-07-10. Retro entry in LESSONS.md.

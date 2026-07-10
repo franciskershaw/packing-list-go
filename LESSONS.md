@@ -200,3 +200,14 @@ project kickoff.
   previously-wrong test. Worth restating in a retro when a diff includes
   what looks like a reversed assertion, so it doesn't read as a hidden
   bug fix.
+
+## 2026-07-10 — PACK-017 — OAuth test isolation shipped; clean ticket
+
+- No rework. Both ACs (network-free test construction via an unexported
+  `newGoogleOAuthManager` constructor, `contains()` → `strings.Contains`)
+  matched the interview's design and went green on the first pass.
+- Verified test isolation directly this time (ran the suite with a
+  broken `HTTP_PROXY`/`HTTPS_PROXY` to force any accidental network call
+  to fail fast) rather than just trusting the refactor — worth doing
+  again whenever a ticket's whole point is removing an I/O dependency
+  from tests.
