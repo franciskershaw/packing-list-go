@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
@@ -146,4 +147,173 @@ func scanPackingList(scan func(...any) error) (*models.PackingList, error) {
 		packingList.TemplateID = &templateID
 	}
 	return packingList, nil
+}
+
+// GetPackingLists returns userID's lists — active (archived_at IS NULL,
+// ordered by updated_at DESC) or archived (archived_at IS NOT NULL, ordered
+// by archived_at DESC) depending on archived. Items is always left empty —
+// list mode never populates it, matching GetTemplates' precedent.
+func (r *PackingListRepository) GetPackingLists(ctx context.Context, userID string, archived bool) ([]models.PackingList, error) {
+	query := `
+		SELECT id, name, event_date, template_id, user_id
+		FROM packing_lists
+		WHERE user_id = $1 AND archived_at IS NULL
+		ORDER BY updated_at DESC
+	`
+	if archived {
+		query = `
+			SELECT id, name, event_date, template_id, user_id
+			FROM packing_lists
+			WHERE user_id = $1 AND archived_at IS NOT NULL
+			ORDER BY archived_at DESC
+		`
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query packing lists: %w", err)
+	}
+	defer rows.Close()
+
+	lists := make([]models.PackingList, 0)
+	for rows.Next() {
+		list, err := scanPackingList(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan packing list: %w", err)
+		}
+		lists = append(lists, *list)
+	}
+	return lists, rows.Err()
+}
+
+// GetPackingListByID fetches a single list with its items grouped by
+// category, regardless of archived state — archiving only changes which
+// GetPackingLists view a list appears in, not whether its detail is
+// reachable.
+func (r *PackingListRepository) GetPackingListByID(ctx context.Context, id string) (*models.PackingListDetail, error) {
+	query := `SELECT id, name, event_date, template_id, user_id FROM packing_lists WHERE id = $1`
+	row := r.db.QueryRowContext(ctx, query, id)
+	base, err := scanPackingList(row.Scan)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get packing list: %w", err)
+	}
+
+	categories, err := r.getPackingListCategories(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PackingListDetail{
+		ID:         base.ID,
+		Name:       base.Name,
+		EventDate:  base.EventDate,
+		TemplateID: base.TemplateID,
+		Categories: categories,
+		UserID:     base.UserID,
+	}, nil
+}
+
+// UpdatePackingList updates name and/or eventDate (nil = unchanged) and
+// returns the full grouped detail, re-fetched — mirrors UpdateTemplate
+// returning the full Template with items re-fetched rather than just the
+// bare updated columns.
+func (r *PackingListRepository) UpdatePackingList(ctx context.Context, id string, name *string, eventDate *string) (*models.PackingListDetail, error) {
+	query := `
+		UPDATE packing_lists
+		SET name = COALESCE($1, name),
+		    event_date = COALESCE($2, event_date),
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $3
+		RETURNING id, name, event_date, template_id, user_id
+	`
+	row := r.db.QueryRowContext(ctx, query, name, eventDate, id)
+	base, err := scanPackingList(row.Scan)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update packing list: %w", err)
+	}
+
+	categories, err := r.getPackingListCategories(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PackingListDetail{
+		ID:         base.ID,
+		Name:       base.Name,
+		EventDate:  base.EventDate,
+		TemplateID: base.TemplateID,
+		Categories: categories,
+		UserID:     base.UserID,
+	}, nil
+}
+
+// ArchivePackingList sets archived_at unconditionally, so calling it again
+// on an already-archived list is a no-op success, not an error.
+func (r *PackingListRepository) ArchivePackingList(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE packing_lists SET archived_at = CURRENT_TIMESTAMP WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to archive packing list: %w", err)
+	}
+	return nil
+}
+
+// getPackingListCategories groups listID's packing_list_items by category,
+// both levels ordered alphabetically by name. Only categories with at least
+// one item on this list appear.
+func (r *PackingListRepository) getPackingListCategories(ctx context.Context, listID string) ([]models.PackingListCategory, error) {
+	query := `
+		SELECT c.id, c.name, pli.item_id, i.name, pli.quantity, pli.notes, pli.is_packed
+		FROM packing_list_items pli
+		JOIN items i ON i.id = pli.item_id
+		JOIN categories c ON c.id = pli.category_id
+		WHERE pli.list_id = $1
+		ORDER BY c.name, i.name
+	`
+	rows, err := r.db.QueryContext(ctx, query, listID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query packing list items: %w", err)
+	}
+	defer rows.Close()
+
+	categories := make([]models.PackingListCategory, 0)
+	var current *models.PackingListCategory
+	for rows.Next() {
+		var (
+			categoryID   uuid.UUID
+			categoryName string
+			itemID       uuid.UUID
+			itemName     string
+			quantity     int
+			notes        sql.NullString
+			isPacked     bool
+		)
+		if err := rows.Scan(&categoryID, &categoryName, &itemID, &itemName, &quantity, &notes, &isPacked); err != nil {
+			return nil, fmt.Errorf("failed to scan packing list item: %w", err)
+		}
+
+		if current == nil || current.ID != categoryID {
+			categories = append(categories, models.PackingListCategory{
+				ID:    categoryID,
+				Name:  categoryName,
+				Items: []models.PackingListDetailItem{},
+			})
+			current = &categories[len(categories)-1]
+		}
+
+		var notesPtr *string
+		if notes.Valid {
+			notesPtr = &notes.String
+		}
+		current.Items = append(current.Items, models.PackingListDetailItem{
+			ItemID:   itemID,
+			Name:     itemName,
+			Quantity: quantity,
+			Notes:    notesPtr,
+			IsPacked: isPacked,
+		})
+	}
+	return categories, rows.Err()
 }
