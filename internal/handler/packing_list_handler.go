@@ -54,8 +54,7 @@ func (h *PackingListHandler) Create(c *gin.Context) {
 		EventDate  *string `json:"eventDate"`
 		TemplateID *string `json:"templateId"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -161,8 +160,7 @@ func (h *PackingListHandler) Update(c *gin.Context) {
 		Name      *string `json:"name"`
 		EventDate *string `json:"eventDate"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 

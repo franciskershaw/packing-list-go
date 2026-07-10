@@ -2,9 +2,9 @@ package handler
 
 import "github.com/gin-gonic/gin"
 
-// userIDFromCtx retrieves the userId string set by AuthMiddleware.
+// userIDFromCtx retrieves the userID string set by AuthMiddleware.
 func userIDFromCtx(c *gin.Context) (string, bool) {
-	val, exists := c.Get("userId")
+	val, exists := c.Get("userID")
 	if !exists {
 		return "", false
 	}

@@ -55,8 +55,7 @@ func (h *PackingListHandler) AddItem(c *gin.Context) {
 		Quantity *int    `json:"quantity"`
 		Notes    *string `json:"notes"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -89,7 +88,7 @@ func (h *PackingListHandler) AddItem(c *gin.Context) {
 
 	var notesPtr *string
 	if req.Notes != nil {
-		notes, ok := validateTemplateItemNotes(c, *req.Notes)
+		notes, ok := validateItemNotes(c, *req.Notes)
 		if !ok {
 			return
 		}
@@ -138,8 +137,7 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 		SortOrder *int    `json:"sortOrder"`
 		IsPacked  *bool   `json:"isPacked"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -169,7 +167,7 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 
 	var notesPtr *string
 	if req.Notes != nil {
-		notes, ok := validateTemplateItemNotes(c, *req.Notes)
+		notes, ok := validateItemNotes(c, *req.Notes)
 		if !ok {
 			return
 		}
@@ -230,8 +228,7 @@ func (h *PackingListHandler) BulkAddItems(c *gin.Context) {
 	var req struct {
 		CategoryID string `json:"categoryId"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 

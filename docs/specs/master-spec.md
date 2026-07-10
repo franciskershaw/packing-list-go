@@ -226,7 +226,8 @@ real, implementation-ready handoff doc.)*
   - `go.mod`: uncomment direct dependencies mismarked `// indirect`.
   - Rename `validateTemplateItemNotes` → `validateItemNotes`, update both
     call sites (`template_item_handler.go`, `packing_list_item_handler.go`).
-  - **Status: not started.** See `docs/handoffs/epic-6-findings.md` items 6, 7, 9, 11.
+  - **Status: Done.** See `docs/handoffs/PACK-018.md` (real handoff) and
+    `docs/handoffs/epic-6-findings.md` items 6, 7, 9, 11 (source findings).
 - **PACK-019** — Handler test `doRequest` retrofit.
   - Retrofit `category_handler_test.go`, `template_handler_test.go`,
     `item_handler_test.go`, `template_item_handler_test.go` to use the

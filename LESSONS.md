@@ -211,3 +211,30 @@ project kickoff.
   to fail fast) rather than just trusting the refactor — worth doing
   again whenever a ticket's whole point is removing an I/O dependency
   from tests.
+
+## 2026-07-10 — PACK-018 — Naming & duplication cleanup shipped; the DATABASE_URL skip was a false-positive gate all session
+
+- No implementation rework — all 4 ACs (casing, the 13-site `bindJSON`
+  consolidation across 6 files, `go.mod tidy`, notes-helper rename)
+  matched the interview's design and went green first pass. The
+  `parseName` finding itself didn't hold up as archived — investigated
+  first, found the real duplication was 4x bigger (13 sites/6 files, not
+  3) than originally scoped, fixed all of it rather than the narrow
+  version.
+- **The real story**: `DATABASE_URL=$DATABASE_URL go test
+  ./internal/repository/...` silently expands to empty and skips in the
+  user's own shell, not just Claude's sandboxed one — meaning PACK-016's
+  "ran repo tests locally, they pass" (and possibly earlier) never
+  actually ran against Neon. Caught by noticing 107 tests completing in
+  0.25s was implausible (real run: ~27.6s), not by reading the output,
+  since a silent skip's "ok" looks identical to a real pass without `-v`.
+- **Pattern**: when a test run's plausibility is in doubt (timing too
+  fast, a skip path exists, etc.), ask for `-v` output and actually look
+  at it — individual test names or an explicit skip message — rather
+  than trusting a bare "ok". Don't assume a passing summary line means
+  what it appears to mean.
+- User reconfirmed (now for two reasons — honesty about who verifies,
+  and the ~27.6s cost) that they run `internal/repository/...` against
+  Neon themselves as a deliberate TDD step, with the real command:
+  `set -a; source .env; set +a; go test ./internal/repository/... -v
+  -count=1`.

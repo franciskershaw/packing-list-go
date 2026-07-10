@@ -70,8 +70,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 		Name        string  `json:"name"`
 		Description *string `json:"description"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -141,8 +140,7 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 

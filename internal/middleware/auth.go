@@ -33,7 +33,7 @@ func AuthMiddleware(secret string) gin.HandlerFunc {
 		}
 
 		// Store user info in context for downstream handlers
-		c.Set("userId", claims.UserId)
+		c.Set("userID", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Next()
 	}

@@ -50,7 +50,14 @@ func (h *CategoryHandler) Create(c *gin.Context) {
 		return
 	}
 
-	name, ok := parseName(c)
+	var req struct {
+		Name string `json:"name"`
+	}
+	if !bindJSON(c, &req) {
+		return
+	}
+
+	name, ok := validateName(c, req.Name)
 	if !ok {
 		return
 	}
@@ -81,7 +88,14 @@ func (h *CategoryHandler) Update(c *gin.Context) {
 		return
 	}
 
-	name, ok := parseName(c)
+	var req struct {
+		Name string `json:"name"`
+	}
+	if !bindJSON(c, &req) {
+		return
+	}
+
+	name, ok := validateName(c, req.Name)
 	if !ok {
 		return
 	}
@@ -158,18 +172,6 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-// parseName reads and validates the "name" field from the JSON body.
-func parseName(c *gin.Context) (string, bool) {
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return "", false
-	}
-	return validateName(c, req.Name)
 }
 
 // isOwned returns true only when the category exists and belongs to the given user.

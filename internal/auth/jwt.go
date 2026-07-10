@@ -9,7 +9,7 @@ import (
 
 type CustomClaims struct {
 	Email  string `json:"email"`
-	UserId string `json:"userId"`
+	UserID string `json:"userID"`
 	jwt.RegisteredClaims
 }
 
@@ -18,10 +18,10 @@ const (
 	refreshTokenExpiry = 7 * 24 * time.Hour
 )
 
-func GenerateAccessToken(email string, userId string, secret string) (string, error) {
+func GenerateAccessToken(email string, userID string, secret string) (string, error) {
 	claims := CustomClaims{
 		Email:  email,
-		UserId: userId,
+		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -30,9 +30,9 @@ func GenerateAccessToken(email string, userId string, secret string) (string, er
 	return signToken(claims, secret)
 }
 
-func GenerateRefreshToken(userId string, secret string) (string, error) {
+func GenerateRefreshToken(userID string, secret string) (string, error) {
 	claims := jwt.RegisteredClaims{
-		Subject:   userId,
+		Subject:   userID,
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpiry)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}

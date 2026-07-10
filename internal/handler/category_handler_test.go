@@ -205,6 +205,31 @@ func TestCreate_MissingName(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+// TestCreate_MalformedJSON is the representative regression test for the
+// shared bindJSON helper (internal/handler/validation.go) — no test
+// anywhere in the handler package covered a malformed-JSON-body request
+// before PACK-018 introduced bindJSON to replace 13 duplicated
+// ShouldBindJSON-then-400 blocks across 6 files. Not duplicated across
+// the other 12 call sites since the logic is now provably identical.
+func TestCreate_MalformedJSON(t *testing.T) {
+	repo := &MockCategoryRepository{}
+	h := handler.NewCategoryHandler(repo)
+	r := newCategoryTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/categories", strings.NewReader(`{"name":`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var body map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	assert.NoError(t, err)
+	assert.Equal(t, "invalid request body", body["error"])
+}
+
 func TestCreate_EmptyName(t *testing.T) {
 	repo := &MockCategoryRepository{}
 	h := handler.NewCategoryHandler(repo)

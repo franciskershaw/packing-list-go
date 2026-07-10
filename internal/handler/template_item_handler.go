@@ -51,8 +51,7 @@ func (h *TemplateHandler) AddItem(c *gin.Context) {
 		Quantity *int    `json:"quantity"`
 		Notes    *string `json:"notes"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -85,7 +84,7 @@ func (h *TemplateHandler) AddItem(c *gin.Context) {
 
 	var notesPtr *string
 	if req.Notes != nil {
-		notes, ok := validateTemplateItemNotes(c, *req.Notes)
+		notes, ok := validateItemNotes(c, *req.Notes)
 		if !ok {
 			return
 		}
@@ -128,8 +127,7 @@ func (h *TemplateHandler) UpdateItem(c *gin.Context) {
 		Quantity *int    `json:"quantity"`
 		Notes    *string `json:"notes"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -159,7 +157,7 @@ func (h *TemplateHandler) UpdateItem(c *gin.Context) {
 
 	var notesPtr *string
 	if req.Notes != nil {
-		notes, ok := validateTemplateItemNotes(c, *req.Notes)
+		notes, ok := validateItemNotes(c, *req.Notes)
 		if !ok {
 			return
 		}
@@ -216,8 +214,7 @@ func (h *TemplateHandler) BulkAddItems(c *gin.Context) {
 	var req struct {
 		CategoryID string `json:"categoryId"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -267,9 +264,9 @@ func validateQuantity(c *gin.Context, quantity int) (int, bool) {
 	return quantity, true
 }
 
-// validateTemplateItemNotes trims and validates optional per-item notes,
+// validateItemNotes trims and validates optional per-item notes,
 // writing the appropriate error response and returning ok=false if invalid.
-func validateTemplateItemNotes(c *gin.Context, notes string) (string, bool) {
+func validateItemNotes(c *gin.Context, notes string) (string, bool) {
 	trimmed := strings.TrimSpace(notes)
 	if len(trimmed) > 200 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "notes must not exceed 200 characters"})

@@ -78,8 +78,7 @@ func (h *ItemHandler) Create(c *gin.Context) {
 		Name       string `json:"name"`
 		CategoryID string `json:"categoryId"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -122,8 +121,7 @@ func (h *ItemHandler) Update(c *gin.Context) {
 		Name       *string `json:"name"`
 		CategoryID *string `json:"categoryId"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	if !bindJSON(c, &req) {
 		return
 	}
 

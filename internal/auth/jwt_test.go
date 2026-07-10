@@ -26,8 +26,8 @@ func TestGenerateAccessToken(t *testing.T) {
 		t.Errorf("expected email test@example.com, got %s", claims.Email)
 	}
 
-	if claims.UserId != "user-123" {
-		t.Errorf("expected userId user-123, got %s", claims.UserId)
+	if claims.UserID != "user-123" {
+		t.Errorf("expected userID user-123, got %s", claims.UserID)
 	}
 }
 

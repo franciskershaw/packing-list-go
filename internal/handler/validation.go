@@ -7,6 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// bindJSON binds the request body JSON into target, writing a 400 error
+// response and returning ok=false if the body is missing or malformed.
+func bindJSON(c *gin.Context, target any) bool {
+	if err := c.ShouldBindJSON(target); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return false
+	}
+	return true
+}
+
 // validateName trims and validates a name, writing the appropriate error response
 // and returning ok=false if invalid.
 func validateName(c *gin.Context, name string) (string, bool) {
