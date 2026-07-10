@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDB(os.Getenv("DATABASE_URL")); err != nil {
 		fmt.Printf("failed to init db: %v\n", err)
 		os.Exit(1)
 	}

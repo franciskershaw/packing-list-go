@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,116 +13,81 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-type TokenType int
-
 const (
-	AccessToken TokenType = iota
-	RefreshToken
+	accessTokenExpiry  = 15 * time.Minute
+	refreshTokenExpiry = 7 * 24 * time.Hour
 )
 
-func generateToken(email string, userId string, tokenType TokenType) (string, error) {
-	var secretKey string
-	var expiry time.Duration
-
-	switch tokenType {
-	case AccessToken:
-		secretKey = os.Getenv("JWT_SECRET_ACCESS")
-		expiry = 15 * time.Minute
-	case RefreshToken:
-		secretKey = os.Getenv("JWT_SECRET_REFRESH")
-		expiry = 7 * 24 * time.Hour
-	default:
-		return "", fmt.Errorf("unknown token type")
-	}
-
-	if secretKey == "" {
-		return "", fmt.Errorf("secret key not set")
-	}
-
+func GenerateAccessToken(email string, userId string, secret string) (string, error) {
 	claims := CustomClaims{
 		Email:  email,
 		UserId: userId,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secretKey))
+	return signToken(claims, secret)
 }
 
-func GenerateAccessToken(email string, userId string) (string, error) {
-	return generateToken(email, userId, AccessToken)
+func GenerateRefreshToken(userId string, secret string) (string, error) {
+	claims := jwt.RegisteredClaims{
+		Subject:   userId,
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpiry)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	}
+	return signToken(claims, secret)
 }
 
-func GenerateRefreshToken(userId string) (string, error) {
-	secretKey := os.Getenv("JWT_SECRET_REFRESH")
-	if secretKey == "" {
+// signToken is the shared signing helper for both access and refresh
+// tokens; only the claims shape and expiry differ between them.
+func signToken(claims jwt.Claims, secret string) (string, error) {
+	if secret == "" {
 		return "", fmt.Errorf("secret key not set")
 	}
 
-	claims := jwt.RegisteredClaims{
-		Subject:   userId,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secretKey))
+	return token.SignedString([]byte(secret))
 }
 
-func ValidateAccessToken(tokenString string) (*CustomClaims, error) {
-	return validateToken(tokenString, os.Getenv("JWT_SECRET_ACCESS"))
-}
-
-func ValidateRefreshToken(tokenString string) (*jwt.RegisteredClaims, error) {
-	secretKey := os.Getenv("JWT_SECRET_REFRESH")
-	if secretKey == "" {
-		return nil, fmt.Errorf("secret key not set")
-	}
-
-	claims := &jwt.RegisteredClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
-		// Verify signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(secretKey), nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
-	}
-
-	if !token.Valid {
-		return nil, fmt.Errorf("invalid token")
-	}
-
-	return claims, nil
-}
-
-func validateToken(tokenString string, secretKey string) (*CustomClaims, error) {
-	if secretKey == "" {
-		return nil, fmt.Errorf("secret key not set")
-	}
-
+func ValidateAccessToken(tokenString string, secret string) (*CustomClaims, error) {
 	claims := &CustomClaims{}
+	if err := parseToken(tokenString, secret, claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+func ValidateRefreshToken(tokenString string, secret string) (*jwt.RegisteredClaims, error) {
+	claims := &jwt.RegisteredClaims{}
+	if err := parseToken(tokenString, secret, claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+// parseToken is the shared parsing/verification helper for both access
+// and refresh tokens; claims must be a pointer satisfying jwt.Claims so
+// jwt.ParseWithClaims can populate it in place.
+func parseToken(tokenString string, secret string, claims jwt.Claims) error {
+	if secret == "" {
+		return fmt.Errorf("secret key not set")
+	}
+
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		// Verify signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(secretKey), nil
+		return []byte(secret), nil
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+		return fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	if !token.Valid {
-		return nil, fmt.Errorf("invalid token")
+		return fmt.Errorf("invalid token")
 	}
 
-	return claims, nil
+	return nil
 }

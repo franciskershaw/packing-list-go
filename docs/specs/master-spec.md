@@ -200,7 +200,8 @@ real, implementation-ready handoff doc.)*
     `internal/auth/jwt.go`; accept parsed config explicitly instead.
   - Removes the `os.Setenv`-in-`init()` workaround in
     `internal/auth/jwt_test.go`.
-  - **Status: not started.** See `docs/handoffs/epic-6-findings.md` item 3.
+  - **Status: Done.** See `docs/handoffs/PACK-015.md` (real handoff) and
+    `docs/handoffs/epic-6-findings.md` item 3 (source finding).
 - **PACK-016** — Fix `user.go`'s not-found convention.
   - `internal/repository/user.go`'s `GetUserByID`/`getUserByGoogleID` adopt
     the `errors.Is(sql.ErrNoRows) → nil, nil` convention every other repo

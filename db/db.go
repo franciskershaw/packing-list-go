@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"os"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -18,16 +17,14 @@ var migrationsFS embed.FS
 
 var DB *sql.DB
 
-func InitDB() error {
-	// Get Neon connection string
-	connString := os.Getenv("DATABASE_URL")
-	if connString == "" {
+func InitDB(databaseURL string) error {
+	if databaseURL == "" {
 		return fmt.Errorf("DATABASE_URL not set")
 	}
 
 	// Open the database
 	var err error
-	DB, err = sql.Open("postgres", connString)
+	DB, err = sql.Open("postgres", databaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -41,7 +38,7 @@ func InitDB() error {
 	fmt.Println("Database connection established")
 
 	// Run migrations
-	err = runMigrations()
+	err = runMigrations(databaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
@@ -49,13 +46,13 @@ func InitDB() error {
 	return nil
 }
 
-func runMigrations() error {
+func runMigrations(databaseURL string) error {
 	sourceDriver, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
 
-	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, os.Getenv("DATABASE_URL"))
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, databaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to create migrator: %w", err)
 	}

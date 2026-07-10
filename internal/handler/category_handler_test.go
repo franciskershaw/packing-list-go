@@ -80,7 +80,7 @@ func (m *MockCategoryRepository) CategoryHasItems(ctx context.Context, id string
 func newCategoryTestRouter(h *handler.CategoryHandler) *gin.Engine {
 	r := gin.New()
 	authed := r.Group("/")
-	authed.Use(middleware.AuthMiddleware())
+	authed.Use(middleware.AuthMiddleware(testutil.TestJWTSecretAccess))
 	authed.GET("/categories", h.List)
 	authed.POST("/categories", h.Create)
 	authed.PATCH("/categories/:id", h.Update)

@@ -25,7 +25,7 @@ func main() {
 	}
 
 	// Initialise the DB
-	err = db.InitDB()
+	err = db.InitDB(cfg.DatabaseURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Database init failed: %v\n", err)
 		os.Exit(1)
@@ -71,7 +71,7 @@ func main() {
 	templateHandler := handler.NewTemplateHandler(templateRepo, itemRepo)
 	packingListHandler := handler.NewPackingListHandler(repository.NewPackingListRepository(db.DB), templateRepo, itemRepo)
 	authed := server.Group("/")
-	authed.Use(middleware.AuthMiddleware())
+	authed.Use(middleware.AuthMiddleware(cfg.JWTSecretAccess))
 	{
 		authed.GET("/categories", categoryHandler.List)
 		authed.POST("/categories", categoryHandler.Create)

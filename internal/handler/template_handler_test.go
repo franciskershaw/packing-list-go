@@ -76,7 +76,7 @@ func newTemplateTestRouter(repo handler.TemplateRepository, itemRepo handler.Ite
 	h := handler.NewTemplateHandler(repo, itemRepo)
 	r := gin.New()
 	authed := r.Group("/")
-	authed.Use(middleware.AuthMiddleware())
+	authed.Use(middleware.AuthMiddleware(testutil.TestJWTSecretAccess))
 	authed.GET("/templates", h.List)
 	authed.POST("/templates", h.Create)
 	authed.GET("/templates/:id", h.GetByID)

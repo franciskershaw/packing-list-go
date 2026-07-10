@@ -44,6 +44,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET_ACCESS")
+	if jwtSecret == "" {
+		fmt.Fprintln(os.Stderr, "error: JWT_SECRET_ACCESS not set")
+		os.Exit(1)
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "db open error: %v\n", err)
@@ -71,7 +77,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	token, err := auth.GenerateAccessToken(devEmail, userID.String())
+	token, err := auth.GenerateAccessToken(devEmail, userID.String(), jwtSecret)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "token error: %v\n", err)
 		os.Exit(1)

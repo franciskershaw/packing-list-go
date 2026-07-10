@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/franciskershaw/packing-list-go/internal/auth"
 	"github.com/franciskershaw/packing-list-go/internal/handler"
 	"github.com/franciskershaw/packing-list-go/internal/models"
+	"github.com/franciskershaw/packing-list-go/internal/testutil"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -21,8 +21,6 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET_ACCESS", "test-secret-access")
-	os.Setenv("JWT_SECRET_REFRESH", "test-secret-refresh")
 	gin.SetMode(gin.TestMode)
 }
 
@@ -95,7 +93,11 @@ func newTestRouter(h *handler.AuthHandler) *gin.Engine {
 
 // testConfig builds a minimal *config.Config for handler construction.
 func testConfig(environment string) *config.Config {
-	return &config.Config{Environment: environment}
+	return &config.Config{
+		Environment:      environment,
+		JWTSecretAccess:  testutil.TestJWTSecretAccess,
+		JWTSecretRefresh: testutil.TestJWTSecretRefresh,
+	}
 }
 
 func testUser() *models.User {
@@ -255,7 +257,7 @@ func TestRefreshToken_ValidCookie(t *testing.T) {
 	oauthMgr := &MockOAuthManager{}
 	user := testUser()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String())
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}

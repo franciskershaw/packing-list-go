@@ -147,3 +147,32 @@ project kickoff.
   dependency (`cfg.Environment`) surfaced 8 test call sites silently
   passing `nil` for it — a quick grep for existing constructor callers
   before assuming a new field is additive-only paid off.
+
+## 2026-07-10 — PACK-015 — Config threading shipped; large ripple, urgency lost in translation
+
+- No rework — both ACs (`db.InitDB` parameter threading,
+  `jwt.go` secret threading + Access/Refresh consolidation) matched the
+  interview's design and went green on the first pass. But the diff
+  touched 15 files — Go forces every caller of a changed signature to
+  update in lockstep, and the in-pass duplication cleanup (agreed in the
+  interview) added further scope.
+- **Pattern**: the usual stub-then-red-then-implement TDD flow doesn't
+  fit a ticket that changes existing function signatures with call sites
+  scattered across the codebase — there's no way to get a compiling test
+  suite without wiring the real logic everywhere at once. Confirmed and
+  named explicitly this ticket (extends the PACK-013 "mechanical
+  passthrough isn't business logic" judgment call to full-ticket scale) —
+  flag this up front rather than manufacturing an artificial/flaky red
+  state.
+- **Pattern**: at close-out, re-checking the source finding's original
+  urgency tier revealed this was archived as "worth knowing about — real,
+  but not urgent," not one of the two items with actual security
+  relevance (those were PACK-014's). The user had lost track of that
+  distinction by the time PACK-015 was picked up. When `grill-me` starts
+  a ticket sourced from a findings/archive doc, restate that tier as part
+  of the opening context so the urgency call is made *before*
+  implementation, not rediscovered after.
+- Also noted: I went quiet too long during blast-radius exploration on a
+  wide-ripple ticket and the user had to ask what was happening — give an
+  interim status update before a long silent tool-call sequence,
+  especially once a ticket's blast radius is visibly large.

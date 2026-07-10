@@ -91,7 +91,7 @@ func (m *MockItemRepository) CategoryIsAccessible(ctx context.Context, categoryI
 func newItemTestRouter(h *handler.ItemHandler) *gin.Engine {
 	r := gin.New()
 	authed := r.Group("/")
-	authed.Use(middleware.AuthMiddleware())
+	authed.Use(middleware.AuthMiddleware(testutil.TestJWTSecretAccess))
 	authed.GET("/items", h.List)
 	authed.POST("/items", h.Create)
 	authed.PATCH("/items/:id", h.Update)

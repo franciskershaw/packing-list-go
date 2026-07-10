@@ -124,7 +124,7 @@ func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo h
 	h := handler.NewPackingListHandler(repo, templateRepo, itemRepo)
 	r := gin.New()
 	authed := r.Group("/")
-	authed.Use(middleware.AuthMiddleware())
+	authed.Use(middleware.AuthMiddleware(testutil.TestJWTSecretAccess))
 	authed.POST("/lists", h.Create)
 	authed.GET("/lists", h.List)
 	authed.GET("/lists/:id", h.GetByID)
