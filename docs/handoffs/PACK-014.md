@@ -1,13 +1,16 @@
-# PACK-014 — Mid-project review findings (DRAFT — not yet scoped)
+# Epic 6 findings archive (reference for PACK-014 – PACK-020)
 
-> **This is not an implementation-ready handoff doc.** It's the preserved
-> raw output of a mid-project codebase review (2026-07-09), captured so
-> none of it is lost before the next available slot to work on it. Run
-> `/grill-me` against this doc before writing any code against it — that
-> session should also decide whether this stays one ticket or splits into
-> several. The findings below span security, architecture, test quality,
-> and cosmetic cleanup, which may not belong in a single PR. No acceptance
-> criteria have been agreed yet; that's the interview's job.
+> **This is not an implementation-ready handoff doc — it's a shared
+> reference archive.** It's the preserved raw output of a mid-project
+> codebase review (2026-07-09), originally captured as a single draft
+> "PACK-014". On 2026-07-10, a `grill-me` session split it into seven
+> tickets (`PACK-014`–`PACK-020` in `docs/specs/master-spec.md`), each
+> covering a numbered subset of the findings below, grouped by shared
+> risk/effort/theme. This file is kept as-is rather than duplicated seven
+> times — **before writing any of those tickets' own real handoff docs,
+> run `/grill-me` for that specific ticket and read the item numbers it
+> references here first.** No acceptance criteria are agreed for any of
+> them yet; that's each ticket's own interview's job.
 
 ## Origin
 
@@ -227,13 +230,24 @@ fire-alarm list.
   `os.Exit` usage are all correct for what that file is (a dev-only script
   entrypoint, not library code).
 
-## Suggested next step
+## Suggested next step (resolved 2026-07-10)
 
-Run `/grill-me` against this doc. Likely questions for that session:
-whether items 1-2 (security) ship as their own small ticket separate from
-3-12 (architecture/cleanup); whether item 3 (config threading) is worth
-doing now or deferred until more of the app exists to make the DI payoff
-clearer; whether items 6-11 are worth a dedicated ticket or should ride
-along with whatever ticket touches those files next; item 12 specifically
-should not be scheduled until every feature ticket touching
-`requests/*.http` is done, per its own note.
+This section previously asked whether to split into multiple tickets. That
+`grill-me` happened on 2026-07-10 — see `docs/specs/master-spec.md`'s
+Epic 6 for the result: seven tickets, each covering a subset of the items
+above —
+
+- **PACK-014** — items 1-2 (security)
+- **PACK-015** — item 3 (config threading)
+- **PACK-016** — item 5 (`user.go` convention)
+- **PACK-017** — items 4, 8 (OAuth test isolation, folded together since
+  they touch the same file)
+- **PACK-018** — items 6, 7, 9, 11 (naming & duplication cleanup, bundled
+  since all are small and similar-risk)
+- **PACK-019** — item 10 (`doRequest` retrofit, isolated given its diff size)
+- **PACK-020** — item 12 (`.http` structural rethink — now unblocked,
+  every feature ticket touching `.http` files is done)
+
+Pick any of these up with its own `/grill-me` when ready; each is scoped
+enough in `master-spec.md` to start from, but still needs its own
+interview and real handoff doc before implementation.

@@ -177,35 +177,61 @@ Status reflects the state of the code as of 2026-07-07.
 
 ### Epic 6: Codebase Health & Hardening
 
-- **PACK-014** — Mid-project review findings (security, config wiring, test
-  quality, naming/duplication cleanup).
-  - Security: refresh-token cookie missing `Secure`/`SameSite`; OAuth CSRF
-    state uses `math/rand` instead of `crypto/rand`.
-  - Architecture: `config.Config` only partially threaded through — `db.go`
-    and `internal/auth/jwt.go` re-read env vars directly instead of
-    accepting parsed config.
-  - Test quality: `internal/auth/google_test.go` makes real network calls
-    to Google's OIDC discovery endpoint; handler test files
-    (`category_handler_test.go`, `template_handler_test.go`,
-    `item_handler_test.go`, `template_item_handler_test.go`) repeat an
-    identical HTTP-request-construction block ~150+ times instead of
-    sharing the `doRequest` helper introduced during PACK-011's retro.
-  - Consistency: `internal/repository/user.go` doesn't follow the
-    `errors.Is(sql.ErrNoRows) → nil, nil` convention every other repo uses;
-    `UserId`/`userId` casing inconsistent with `UserID` used everywhere
-    else; `parseName` duplicated across category/item/template handlers
-    instead of shared; hand-rolled `contains()` helper duplicates
-    `strings.Contains`; `go.mod` has every dependency marked `// indirect`;
-    `validateTemplateItemNotes` is named for templates but reused as-is by
-    PACK-012 for packing-list items too.
-  - Tooling: `requests/*.http` files need a structural rethink (sections
-    depend on captured variables from earlier in the same file, making
-    per-commit spot-checks awkward) — deliberately deferred until every
-    feature ticket touching them is done, per item 12 in the draft.
-  - **Status: Not started.** Draft handoff at
-    `docs/handoffs/PACK-014.md` — this ticket has **not** been through
-    `grill-me` yet. The draft preserves the full 2026-07-09 review output
-    (an external agent's assessment plus an independent verification pass)
-    so none of it is lost, but it is not scoped into acceptance criteria —
-    that interview may also decide to split this into more than one ticket
-    rather than shipping it as a single bundled change.
+*(Split via `grill-me` on 2026-07-10 from a single catch-all PACK-014 into
+seven tickets, grouped by shared risk/effort/theme. Full technical detail
+for every item below lives in `docs/handoffs/PACK-014.md`, kept as the
+shared reference archive rather than duplicated per ticket — each ticket's
+own future `grill-me` should read the numbered item(s) it references
+before writing that ticket's real handoff doc.)*
+
+- **PACK-014** — Security hardening: refresh-token cookie & OAuth CSRF token.
+  - Set `Secure`/`SameSite` on the refresh-token cookie
+    (`internal/handler/auth_handler.go`).
+  - Switch OAuth CSRF state generation from `math/rand` to `crypto/rand`
+    (`internal/auth/google.go`).
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` items 1-2.
+- **PACK-015** — Thread `config.Config` through `db.go` and `jwt.go`.
+  - Stop re-reading `DATABASE_URL`/`JWT_SECRET_ACCESS`/`JWT_SECRET_REFRESH`
+    via `os.Getenv` inside `db.InitDB`/`runMigrations` and
+    `internal/auth/jwt.go`; accept parsed config explicitly instead.
+  - Removes the `os.Setenv`-in-`init()` workaround in
+    `internal/auth/jwt_test.go`.
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` item 3.
+- **PACK-016** — Fix `user.go`'s not-found convention.
+  - `internal/repository/user.go`'s `GetUserByID`/`getUserByGoogleID` adopt
+    the `errors.Is(sql.ErrNoRows) → nil, nil` convention every other repo
+    uses, instead of wrapping "not found" into an error indistinguishable
+    from a genuine DB failure.
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` item 5.
+- **PACK-017** — OAuth test isolation.
+  - Inject the OIDC provider/verifier into `NewGoogleOAuthManager` so
+    `internal/auth/google_test.go` stops making live network calls to
+    Google's discovery endpoint.
+  - While touching that file: replace its hand-rolled `contains()` helper
+    with `strings.Contains`.
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` items 4, 8.
+- **PACK-018** — Naming & duplication cleanup.
+  - `UserId`/`userId` → `UserID`/`userID` casing (`internal/auth/jwt.go`,
+    `internal/middleware/auth.go`, `internal/handler/context.go`).
+  - Extract/reuse a shared `parseName` helper in `item_handler.go`/
+    `template_handler.go`, matching `category_handler.go`'s existing
+    pattern.
+  - `go.mod`: uncomment direct dependencies mismarked `// indirect`.
+  - Rename `validateTemplateItemNotes` → `validateItemNotes`, update both
+    call sites (`template_item_handler.go`, `packing_list_item_handler.go`).
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` items 6, 7, 9, 11.
+- **PACK-019** — Handler test `doRequest` retrofit.
+  - Retrofit `category_handler_test.go`, `template_handler_test.go`,
+    `item_handler_test.go`, `template_item_handler_test.go` to use the
+    shared `doRequest` helper (already used by every packing-list test
+    file) instead of the repeated `httptest.NewRequest`+headers+
+    `ServeHTTP` block.
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` item 10.
+- **PACK-020** — `requests/*.http` structural rethink.
+  - Now unblocked — every feature ticket touching `.http` files (Epics
+    1-5) is done. Needs its own `grill-me`: decide whether one file can
+    serve both "quick per-commit spot check" and "full manual regression
+    pass," or whether those are different enough needs to warrant
+    splitting (e.g. separate smoke-test vs. regression files), and whether
+    the `.http`-per-resource convention itself should be reconsidered.
+  - **Status: not started.** See `docs/handoffs/PACK-014.md` item 12.
