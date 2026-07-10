@@ -29,6 +29,11 @@ API", "this service") instead.
 - **Tests**: `package handler_test` (black-box), `httptest.NewRecorder()` +
   `gin.New()`. Shared helper `internal/testutil/auth.go` (`AuthHeader`)
   generates a Bearer token for tests without going through the Google flow.
+- **Implementation order**: per the global layer-by-layer implementation
+  rule, implement the repository layer (and its integration tests) fully,
+  commit, and pause for review before starting on handler code for the
+  same ticket — handler tests run entirely against a mocked repository, so
+  the two layers have no real coupling to build in the same pass.
 
 ## Overrides of the global default process
 

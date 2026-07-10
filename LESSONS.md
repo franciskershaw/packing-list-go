@@ -62,3 +62,28 @@ project kickoff.
   asserting 204 on cleanup deletes that a later request's own side effect
   (seeding `packing_list_items` from a template) actually blocks with 409 —
   caught and fixed post-review, not a code bug.
+
+## 2026-07-10 — PACK-011 — Packing list management shipped; clean design, three process refinements
+
+- No design rework — every endpoint matched the handoff doc's decisions on
+  the first pass (all repo tests green first try, all four handler ACs
+  green first try, zero regressions along the way).
+- **Pattern**: stubs must fail in an assertable way (sentinel error / a
+  real-but-wrong HTTP status), never a bare panic — Go's `testing.tRunner`
+  recovers a panic, re-raises it, and kills the whole test binary, hiding
+  every other test's result behind the first one. Codified in both
+  CLAUDE.md files.
+- **Pattern**: when the upper layer is tested entirely against a mock,
+  implement and fully green the lower layer first — its own commit, its
+  own review pause — before touching the upper layer. Zero real coupling
+  cost once the interface is fixed, and reviews got noticeably cleaner
+  split this way. Codified globally (step 5) plus a project-specific
+  pointer.
+- Manual-verification (`.http`) files need `{{$guid}}`-style unique names
+  in any setup fixture with a per-user uniqueness check (category/template
+  names) — a fixed name 409s against leftover state from an incomplete
+  prior run, which then cascades (e.g. a failed category create leaves a
+  downstream item create with no valid `categoryId`). Also moved to
+  drafting each AC's `.http` section alongside its own implementation,
+  with an explicit manual-check gate per commit, instead of writing the
+  whole file upfront and only running it once at the end.

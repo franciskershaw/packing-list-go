@@ -159,3 +159,7 @@ Key decisions from the interview:
   becomes stale once this ticket ships; cleanup should actually complete
   (delete the seeded lists, then the item/category) instead of ending in
   the documented 409s.
+
+## Close-out
+
+Completed 2026-07-10. Retro entry in LESSONS.md.

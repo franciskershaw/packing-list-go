@@ -154,7 +154,10 @@ Status reflects the state of the code as of 2026-07-07.
   - `GET /lists/:id` — list with items grouped by category
   - `PATCH /lists/:id` — update name/event_date
   - `DELETE /lists/:id` — soft delete via `archived_at`
-  - **Status: not started.**
+  - **Status: Done.** `docs/handoffs/PACK-011.md` — `GET /lists` omits
+    items entirely (metadata only); `GET /lists/:id` introduces a new
+    grouped-by-category response shape (`PackingListDetail`); `archivedAt`
+    is not exposed in any response yet (no concrete consumer).
 - **PACK-012** — Managing items on a packing list.
   - `POST /lists/:id/items` — add an item
   - `PATCH /lists/:id/items/:itemId` — update quantity/notes/sort order
