@@ -102,6 +102,8 @@ func main() {
 		authed.PATCH("/lists/:id/items/:itemId", packingListHandler.UpdateItem)
 		authed.DELETE("/lists/:id/items/:itemId", packingListHandler.RemoveItem)
 		authed.POST("/lists/:id/items/bulk", packingListHandler.BulkAddItems)
+		authed.POST("/lists/:id/pack-all", packingListHandler.PackAll)
+		authed.POST("/lists/:id/unpack-all", packingListHandler.UnpackAll)
 	}
 
 	if err := server.Run(":" + cfg.Port); err != nil {

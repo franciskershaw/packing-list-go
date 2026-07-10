@@ -71,7 +71,7 @@ func TestUpdatePackingListItem_QuantityOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	newQty := 5
-	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), &newQty, nil, nil)
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), &newQty, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	assert.Equal(t, 5, updated.Quantity)
@@ -88,7 +88,7 @@ func TestUpdatePackingListItem_NotesOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	notes := "bring spares"
-	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, &notes, nil)
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, &notes, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	assert.Equal(t, 2, updated.Quantity, "quantity should be unchanged when only notes is updated")
@@ -105,7 +105,7 @@ func TestUpdatePackingListItem_SortOrderOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	sortOrder := -3
-	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, nil, &sortOrder)
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, nil, &sortOrder, nil)
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	require.NotNil(t, updated.SortOrder)
@@ -123,7 +123,7 @@ func TestUpdatePackingListItem_AllThree(t *testing.T) {
 	qty := 4
 	notes := "combined update"
 	sortOrder := 0
-	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), &qty, &notes, &sortOrder)
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), &qty, &notes, &sortOrder, nil)
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	assert.Equal(t, 4, updated.Quantity)
@@ -131,6 +131,131 @@ func TestUpdatePackingListItem_AllThree(t *testing.T) {
 	assert.Equal(t, notes, *updated.Notes)
 	require.NotNil(t, updated.SortOrder)
 	assert.Equal(t, 0, *updated.SortOrder, "zero must be accepted as a real sortOrder value, not treated as absent")
+}
+
+func TestUpdatePackingListItem_IsPackedTrue(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemID := createTestItem(t, catID)
+	listID := createTestPackingList(t)
+	_, err := packingListRepo.AddPackingListItem(ctx, listID.String(), itemID.String(), 1, nil)
+	require.NoError(t, err)
+
+	isPacked := true
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, nil, nil, &isPacked)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.True(t, updated.IsPacked)
+}
+
+func TestUpdatePackingListItem_IsPackedFalse(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemID := createTestItem(t, catID)
+	listID := createTestPackingList(t)
+	_, err := packingListRepo.AddPackingListItem(ctx, listID.String(), itemID.String(), 1, nil)
+	require.NoError(t, err)
+
+	isPackedTrue := true
+	_, err = packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, nil, nil, &isPackedTrue)
+	require.NoError(t, err)
+
+	isPackedFalse := false
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), nil, nil, nil, &isPackedFalse)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.False(t, updated.IsPacked, "explicit false must actually clear is_packed, not be treated as absent")
+}
+
+func TestUpdatePackingListItem_AllFour(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemID := createTestItem(t, catID)
+	listID := createTestPackingList(t)
+	_, err := packingListRepo.AddPackingListItem(ctx, listID.String(), itemID.String(), 1, nil)
+	require.NoError(t, err)
+
+	qty := 7
+	notes := "combined with isPacked"
+	sortOrder := 2
+	isPacked := true
+	updated, err := packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemID.String(), &qty, &notes, &sortOrder, &isPacked)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, 7, updated.Quantity)
+	require.NotNil(t, updated.Notes)
+	assert.Equal(t, notes, *updated.Notes)
+	require.NotNil(t, updated.SortOrder)
+	assert.Equal(t, 2, *updated.SortOrder)
+	assert.True(t, updated.IsPacked)
+}
+
+func TestPackAllItems_SetsEveryItemPacked(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemAlreadyPacked := createTestItem(t, catID)
+	itemNotPacked := createTestItem(t, catID)
+	listID := createTestPackingList(t)
+	_, err := packingListRepo.AddPackingListItem(ctx, listID.String(), itemAlreadyPacked.String(), 1, nil)
+	require.NoError(t, err)
+	_, err = packingListRepo.AddPackingListItem(ctx, listID.String(), itemNotPacked.String(), 1, nil)
+	require.NoError(t, err)
+	isPacked := true
+	_, err = packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemAlreadyPacked.String(), nil, nil, nil, &isPacked)
+	require.NoError(t, err)
+
+	err = packingListRepo.PackAllItems(ctx, listID.String())
+	require.NoError(t, err)
+
+	items, err := packingListRepo.GetPackingListItems(ctx, listID.String())
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	for _, item := range items {
+		assert.True(t, item.IsPacked)
+	}
+}
+
+func TestPackAllItems_EmptyListIsNoOp(t *testing.T) {
+	ctx := context.Background()
+	listID := createTestPackingList(t)
+
+	err := packingListRepo.PackAllItems(ctx, listID.String())
+	require.NoError(t, err)
+}
+
+func TestUnpackAllItems_SetsEveryItemUnpacked(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemA := createTestItem(t, catID)
+	itemB := createTestItem(t, catID)
+	listID := createTestPackingList(t)
+	_, err := packingListRepo.AddPackingListItem(ctx, listID.String(), itemA.String(), 1, nil)
+	require.NoError(t, err)
+	_, err = packingListRepo.AddPackingListItem(ctx, listID.String(), itemB.String(), 1, nil)
+	require.NoError(t, err)
+	isPacked := true
+	_, err = packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemA.String(), nil, nil, nil, &isPacked)
+	require.NoError(t, err)
+	_, err = packingListRepo.UpdatePackingListItem(ctx, listID.String(), itemB.String(), nil, nil, nil, &isPacked)
+	require.NoError(t, err)
+
+	err = packingListRepo.UnpackAllItems(ctx, listID.String())
+	require.NoError(t, err)
+
+	items, err := packingListRepo.GetPackingListItems(ctx, listID.String())
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	for _, item := range items {
+		assert.False(t, item.IsPacked)
+	}
+}
+
+func TestUnpackAllItems_EmptyListIsNoOp(t *testing.T) {
+	ctx := context.Background()
+	listID := createTestPackingList(t)
+
+	err := packingListRepo.UnpackAllItems(ctx, listID.String())
+	require.NoError(t, err)
 }
 
 func TestRemovePackingListItem(t *testing.T) {

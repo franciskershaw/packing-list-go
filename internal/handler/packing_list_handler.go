@@ -17,10 +17,12 @@ type PackingListRepository interface {
 	UpdatePackingList(ctx context.Context, id string, name *string, eventDate *string) (*models.PackingListDetail, error)
 	ArchivePackingList(ctx context.Context, id string) error
 	AddPackingListItem(ctx context.Context, listID, itemID string, quantity int, notes *string) (*models.PackingListItem, error)
-	UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int) (*models.PackingListItem, error)
+	UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error)
 	RemovePackingListItem(ctx context.Context, listID, itemID string) error
 	PackingListItemExists(ctx context.Context, listID, itemID string) (bool, error)
 	GetPackingListItems(ctx context.Context, listID string) ([]models.PackingListItem, error)
+	PackAllItems(ctx context.Context, listID string) error
+	UnpackAllItems(ctx context.Context, listID string) error
 }
 
 // TemplateLookupRepository exposes just what PackingListHandler needs to

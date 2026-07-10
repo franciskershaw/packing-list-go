@@ -82,8 +82,8 @@ func (m *MockPackingListRepository) AddPackingListItem(ctx context.Context, list
 	return args.Get(0).(*models.PackingListItem), args.Error(1)
 }
 
-func (m *MockPackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int) (*models.PackingListItem, error) {
-	args := m.Called(ctx, listID, itemID, quantity, notes, sortOrder)
+func (m *MockPackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error) {
+	args := m.Called(ctx, listID, itemID, quantity, notes, sortOrder, isPacked)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -108,6 +108,16 @@ func (m *MockPackingListRepository) GetPackingListItems(ctx context.Context, lis
 	return args.Get(0).([]models.PackingListItem), args.Error(1)
 }
 
+func (m *MockPackingListRepository) PackAllItems(ctx context.Context, listID string) error {
+	args := m.Called(ctx, listID)
+	return args.Error(0)
+}
+
+func (m *MockPackingListRepository) UnpackAllItems(ctx context.Context, listID string) error {
+	args := m.Called(ctx, listID)
+	return args.Error(0)
+}
+
 // --- Helpers ---
 
 func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo handler.TemplateLookupRepository, itemRepo handler.ItemLookupRepository) *gin.Engine {
@@ -124,6 +134,8 @@ func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo h
 	authed.PATCH("/lists/:id/items/:itemId", h.UpdateItem)
 	authed.DELETE("/lists/:id/items/:itemId", h.RemoveItem)
 	authed.POST("/lists/:id/items/bulk", h.BulkAddItems)
+	authed.POST("/lists/:id/pack-all", h.PackAll)
+	authed.POST("/lists/:id/unpack-all", h.UnpackAll)
 	return r
 }
 

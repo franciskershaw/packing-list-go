@@ -116,8 +116,9 @@ func (h *PackingListHandler) AddItem(c *gin.Context) {
 }
 
 // UpdateItem handles PATCH /lists/:id/items/:itemId — quantity/notes/
-// sortOrder, at least one required. sortOrder accepts any integer,
+// sortOrder/isPacked, at least one required. sortOrder accepts any integer,
 // including negative or zero — no domain constraint like quantity's range.
+// isPacked is *bool so an explicit false is distinguishable from omission.
 func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 	list, _, ok := h.requireOwnedPackingList(c)
 	if !ok {
@@ -135,14 +136,15 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 		Quantity  *int    `json:"quantity"`
 		Notes     *string `json:"notes"`
 		SortOrder *int    `json:"sortOrder"`
+		IsPacked  *bool   `json:"isPacked"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
-	if req.Quantity == nil && req.Notes == nil && req.SortOrder == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one of quantity, notes, or sortOrder is required"})
+	if req.Quantity == nil && req.Notes == nil && req.SortOrder == nil && req.IsPacked == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one of quantity, notes, sortOrder, or isPacked is required"})
 		return
 	}
 
@@ -174,7 +176,7 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 		notesPtr = &notes
 	}
 
-	updated, err := h.repo.UpdatePackingListItem(c.Request.Context(), listID, itemID, quantityPtr, notesPtr, req.SortOrder)
+	updated, err := h.repo.UpdatePackingListItem(c.Request.Context(), listID, itemID, quantityPtr, notesPtr, req.SortOrder, req.IsPacked)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update packing list item"})
 		return

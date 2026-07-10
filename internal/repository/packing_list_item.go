@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
@@ -30,9 +31,16 @@ func (r *PackingListRepository) AddPackingListItem(ctx context.Context, listID, 
 	return item, nil
 }
 
-// UpdatePackingListItem updates quantity/notes/sort_order (nil = unchanged
-// for each field independently).
-func (r *PackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int) (*models.PackingListItem, error) {
+// UpdatePackingListItem updates quantity/notes/sort_order/is_packed (nil =
+// unchanged for each field independently).
+//
+// PACK-013 stub: isPacked is accepted (signature matches the interface) but
+// not yet persisted — the COALESCE list below doesn't include it yet. This
+// keeps the pre-existing quantity/notes/sortOrder behavior real and passing
+// while leaving is_packed's actual persistence for Phase A to implement;
+// tests asserting isPacked took effect fail on the assertion, not a panic
+// or build error.
+func (r *PackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error) {
 	query := `
 		WITH updated AS (
 			UPDATE packing_list_items
@@ -51,6 +59,18 @@ func (r *PackingListRepository) UpdatePackingListItem(ctx context.Context, listI
 		return nil, fmt.Errorf("failed to update packing list item: %w", err)
 	}
 	return item, nil
+}
+
+// PackAllItems sets is_packed = true for every item on listID. PACK-013
+// stub, not yet implemented.
+func (r *PackingListRepository) PackAllItems(ctx context.Context, listID string) error {
+	return errors.New("not implemented")
+}
+
+// UnpackAllItems sets is_packed = false for every item on listID. PACK-013
+// stub, not yet implemented.
+func (r *PackingListRepository) UnpackAllItems(ctx context.Context, listID string) error {
+	return errors.New("not implemented")
 }
 
 // RemovePackingListItem removes itemID from listID.

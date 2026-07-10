@@ -306,7 +306,7 @@ func TestPackingListItemUpdate_QuantityOnly(t *testing.T) {
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
 	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
-	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, &newQty, (*string)(nil), (*int)(nil)).Return(updated, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, &newQty, (*string)(nil), (*int)(nil), (*bool)(nil)).Return(updated, nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
@@ -328,7 +328,7 @@ func TestPackingListItemUpdate_NotesOnly(t *testing.T) {
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
 	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
-	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, (*int)(nil), &notes, (*int)(nil)).Return(updated, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, (*int)(nil), &notes, (*int)(nil), (*bool)(nil)).Return(updated, nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
@@ -350,7 +350,7 @@ func TestPackingListItemUpdate_SortOrderOnlyNegative(t *testing.T) {
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
 	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
-	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, (*int)(nil), (*string)(nil), &sortOrder).Return(updated, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, (*int)(nil), (*string)(nil), &sortOrder, (*bool)(nil)).Return(updated, nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
@@ -365,7 +365,102 @@ func TestPackingListItemUpdate_SortOrderOnlyNegative(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
-func TestPackingListItemUpdate_MissingAllThree(t *testing.T) {
+func TestPackingListItemUpdate_IsPackedTrue(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	isPacked := true
+	updated := &models.PackingListItem{
+		ItemID:     uuid.MustParse(testPackingListItemID),
+		Name:       "Test Item",
+		CategoryID: uuid.MustParse(testPackingListCategoryID),
+		Quantity:   1,
+		IsPacked:   true,
+	}
+
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, (*int)(nil), (*string)(nil), (*int)(nil), &isPacked).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/"+testPackingListItemID,
+		jsonBody(t, map[string]any{"isPacked": true}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, true, body["isPacked"])
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListItemUpdate_IsPackedFalse(t *testing.T) {
+	// Explicit false must be distinguishable from omission — isPacked is
+	// *bool precisely so this request is recognized as "set to false", not
+	// dropped by the "at least one of ... is required" check.
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	isPacked := false
+	updated := &models.PackingListItem{
+		ItemID:     uuid.MustParse(testPackingListItemID),
+		Name:       "Test Item",
+		CategoryID: uuid.MustParse(testPackingListCategoryID),
+		Quantity:   1,
+		IsPacked:   false,
+	}
+
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, (*int)(nil), (*string)(nil), (*int)(nil), &isPacked).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/"+testPackingListItemID,
+		jsonBody(t, map[string]any{"isPacked": false}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListItemUpdate_AllFour(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	newQty := 3
+	sortOrder := 1
+	isPacked := true
+	notes := "combined with isPacked"
+	updated := &models.PackingListItem{
+		ItemID:     uuid.MustParse(testPackingListItemID),
+		Name:       "Test Item",
+		CategoryID: uuid.MustParse(testPackingListCategoryID),
+		Quantity:   3,
+		Notes:      &notes,
+		SortOrder:  &sortOrder,
+		IsPacked:   true,
+	}
+
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, &newQty, &notes, &sortOrder, &isPacked).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/"+testPackingListItemID,
+		jsonBody(t, map[string]any{"quantity": 3, "notes": notes, "sortOrder": 1, "isPacked": true}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListItemUpdate_MissingAllFour(t *testing.T) {
 	// Ownership is checked before the body, mirroring
 	// TemplateHandler.UpdateItem's requireOwnedTemplate-first order (via
 	// requireOwnedPackingList here) — so GetPackingListByID is still
@@ -474,7 +569,7 @@ func TestPackingListItemUpdate_SucceedsOnArchivedList(t *testing.T) {
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
 	repo.On("PackingListItemExists", mock.Anything, testPackingListID, testPackingListItemID).Return(true, nil)
-	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, &newQty, (*string)(nil), (*int)(nil)).Return(updated, nil)
+	repo.On("UpdatePackingListItem", mock.Anything, testPackingListID, testPackingListItemID, &newQty, (*string)(nil), (*int)(nil), (*bool)(nil)).Return(updated, nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
