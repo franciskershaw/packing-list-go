@@ -261,16 +261,19 @@ func (r *PackingListRepository) ArchivePackingList(ctx context.Context, id strin
 }
 
 // getPackingListCategories groups listID's packing_list_items by category,
-// both levels ordered alphabetically by name. Only categories with at least
-// one item on this list appear.
+// categories ordered alphabetically by name. Within each category, items are
+// ordered by sort_order (NULLS LAST) then alphabetically by name — explicitly
+// ordered items surface first in that order, anything still NULL falls back
+// to alphabetical. Only categories with at least one item on this list
+// appear.
 func (r *PackingListRepository) getPackingListCategories(ctx context.Context, listID string) ([]models.PackingListCategory, error) {
 	query := `
-		SELECT c.id, c.name, pli.item_id, i.name, pli.quantity, pli.notes, pli.is_packed
+		SELECT c.id, c.name, pli.item_id, i.name, pli.quantity, pli.notes, pli.is_packed, pli.sort_order
 		FROM packing_list_items pli
 		JOIN items i ON i.id = pli.item_id
 		JOIN categories c ON c.id = pli.category_id
 		WHERE pli.list_id = $1
-		ORDER BY c.name, i.name
+		ORDER BY c.name, pli.sort_order NULLS LAST, i.name
 	`
 	rows, err := r.db.QueryContext(ctx, query, listID)
 	if err != nil {
@@ -289,8 +292,9 @@ func (r *PackingListRepository) getPackingListCategories(ctx context.Context, li
 			quantity     int
 			notes        sql.NullString
 			isPacked     bool
+			sortOrder    sql.NullInt64
 		)
-		if err := rows.Scan(&categoryID, &categoryName, &itemID, &itemName, &quantity, &notes, &isPacked); err != nil {
+		if err := rows.Scan(&categoryID, &categoryName, &itemID, &itemName, &quantity, &notes, &isPacked, &sortOrder); err != nil {
 			return nil, fmt.Errorf("failed to scan packing list item: %w", err)
 		}
 
@@ -307,12 +311,18 @@ func (r *PackingListRepository) getPackingListCategories(ctx context.Context, li
 		if notes.Valid {
 			notesPtr = &notes.String
 		}
+		var sortOrderPtr *int
+		if sortOrder.Valid {
+			sortOrderInt := int(sortOrder.Int64)
+			sortOrderPtr = &sortOrderInt
+		}
 		current.Items = append(current.Items, models.PackingListDetailItem{
-			ItemID:   itemID,
-			Name:     itemName,
-			Quantity: quantity,
-			Notes:    notesPtr,
-			IsPacked: isPacked,
+			ItemID:    itemID,
+			Name:      itemName,
+			Quantity:  quantity,
+			Notes:     notesPtr,
+			IsPacked:  isPacked,
+			SortOrder: sortOrderPtr,
 		})
 	}
 	return categories, rows.Err()
