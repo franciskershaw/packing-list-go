@@ -96,6 +96,7 @@ func main() {
 		authed.POST("/lists", packingListHandler.Create)
 		authed.GET("/lists", packingListHandler.List)
 		authed.GET("/lists/:id", packingListHandler.GetByID)
+		authed.PATCH("/lists/:id", packingListHandler.Update)
 	}
 
 	if err := server.Run(":" + cfg.Port); err != nil {

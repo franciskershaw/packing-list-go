@@ -139,9 +139,69 @@ func (h *PackingListHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
-// Update handles PATCH /lists/:id. PACK-011 stub, not yet implemented.
+// Update handles PATCH /lists/:id — name and/or eventDate. No uniqueness
+// check (duplicate list names are fine, per PACK-010). Allowed on archived
+// lists — archiving doesn't freeze the record.
 func (h *PackingListHandler) Update(c *gin.Context) {
-	panic("not implemented")
+	userID, ok := userIDFromCtx(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		Name      *string `json:"name"`
+		EventDate *string `json:"eventDate"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if req.Name == nil && req.EventDate == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one of name or eventDate is required"})
+		return
+	}
+
+	var namePtr *string
+	if req.Name != nil {
+		name, ok := validateName(c, *req.Name)
+		if !ok {
+			return
+		}
+		namePtr = &name
+	}
+
+	if req.EventDate != nil {
+		if _, err := time.Parse("2006-01-02", *req.EventDate); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventDate"})
+			return
+		}
+	}
+
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	list, err := h.repo.GetPackingListByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		return
+	}
+	if !isPackingListOwned(list, userID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "packing list not found"})
+		return
+	}
+
+	updated, err := h.repo.UpdatePackingList(c.Request.Context(), id, namePtr, req.EventDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update packing list"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
 }
 
 // Delete handles DELETE /lists/:id. PACK-011 stub, not yet implemented.
