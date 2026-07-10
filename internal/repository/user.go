@@ -25,11 +25,9 @@ func (r *PostgresUserRepository) GetOrCreateUser(ctx context.Context, email, goo
 	// Try to get existing user by Google ID
 	user, err := r.getUserByGoogleID(ctx, googleID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("failed to look up user: %w", err)
-		}
-		// user not found — fall through to create
-	} else {
+		return nil, fmt.Errorf("failed to look up user: %w", err)
+	}
+	if user != nil {
 		// User exists, update last login
 		now := time.Now()
 		if err := r.updateLastLogin(ctx, user.ID, now); err != nil {
@@ -93,7 +91,10 @@ func (r *PostgresUserRepository) GetUserByID(ctx context.Context, userID string)
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user by id: %w", err)
 	}
 
 	return user, nil
@@ -120,7 +121,10 @@ func (r *PostgresUserRepository) getUserByGoogleID(ctx context.Context, googleID
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user by google id: %w", err)
 	}
 
 	return user, nil

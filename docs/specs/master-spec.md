@@ -207,7 +207,8 @@ real, implementation-ready handoff doc.)*
     the `errors.Is(sql.ErrNoRows) → nil, nil` convention every other repo
     uses, instead of wrapping "not found" into an error indistinguishable
     from a genuine DB failure.
-  - **Status: not started.** See `docs/handoffs/epic-6-findings.md` item 5.
+  - **Status: Done.** See `docs/handoffs/PACK-016.md` (real handoff) and
+    `docs/handoffs/epic-6-findings.md` item 5 (source finding).
 - **PACK-017** — OAuth test isolation.
   - Inject the OIDC provider/verifier into `NewGoogleOAuthManager` so
     `internal/auth/google_test.go` stops making live network calls to

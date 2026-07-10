@@ -68,6 +68,6 @@ func TestGetUserByID_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	user, err := userRepo.GetUserByID(ctx, uuid.NewString())
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, user)
 }

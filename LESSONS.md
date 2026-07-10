@@ -176,3 +176,27 @@ project kickoff.
   wide-ripple ticket and the user had to ask what was happening — give an
   interim status update before a long silent tool-call sequence,
   especially once a ticket's blast radius is visibly large.
+
+## 2026-07-10 — PACK-016 — user.go not-found convention shipped; test-reporting gap found and fixed
+
+- No implementation rework — both ACs (repo `nil, nil` convention,
+  `RefreshToken` 401-vs-500 split) matched the interview's design and
+  went green on the first pass.
+- Surfaced a real reporting gap: `internal/repository/...` tests had been
+  silently self-skipping all session (no `DATABASE_URL` in Claude's shell)
+  without that being flagged clearly enough — the user assumed they'd
+  been running against the real Neon DB in earlier tickets. Resolved with
+  a standing split (user runs the DB-touching suite as final check;
+  Claude drafts/updates it and confirms everything else green) and a
+  habit of always naming a skip explicitly rather than letting "tests
+  pass" imply full coverage.
+- **Pattern**: at the close-out gate, give copy-pasteable verification
+  commands (pulled from the handoff doc + project CLAUDE.md) alongside
+  the yes/no question instead of asking blind. Promoted live this ticket
+  by editing the `close-out` skill's Step 2 directly.
+- One test assertion flipped (`Error` → `NoError` in
+  `TestGetUserByID_NotFound`) purely as a mechanical consequence of the
+  intentional contract change (not-found now `nil, nil`) — not a fix to a
+  previously-wrong test. Worth restating in a retro when a diff includes
+  what looks like a reversed assertion, so it doesn't read as a hidden
+  bug fix.

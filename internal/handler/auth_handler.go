@@ -127,6 +127,10 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	ctx := context.Background()
 	user, err := h.userRepo.GetUserByID(ctx, claims.Subject)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		return
+	}
+	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 		return
 	}

@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -278,6 +279,66 @@ func TestRefreshToken_ValidCookie(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &body)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, body["accessToken"])
+
+	userRepo.AssertExpectations(t)
+}
+
+func TestRefreshToken_UserNotFound(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	user := testUser()
+
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	if err != nil {
+		t.Fatalf("failed to generate refresh token: %v", err)
+	}
+
+	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, nil)
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refreshToken", Value: refreshToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var body map[string]any
+	err = json.Unmarshal(w.Body.Bytes(), &body)
+	assert.NoError(t, err)
+	assert.Equal(t, "user not found", body["error"])
+
+	userRepo.AssertExpectations(t)
+}
+
+func TestRefreshToken_UserLookupError(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	user := testUser()
+
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	if err != nil {
+		t.Fatalf("failed to generate refresh token: %v", err)
+	}
+
+	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, errors.New("db error"))
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refreshToken", Value: refreshToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var body map[string]any
+	err = json.Unmarshal(w.Body.Bytes(), &body)
+	assert.NoError(t, err)
+	assert.Equal(t, "failed to look up user", body["error"])
 
 	userRepo.AssertExpectations(t)
 }
