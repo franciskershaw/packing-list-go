@@ -19,7 +19,7 @@
 # since categoryId would resolve to an error body instead of an id).
 
 @host  = http://localhost:8080
-@token = 
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM2OTkwNDQsImlhdCI6MTc4MzY5ODE0NH0.zViTQG6Sb4z1DnrfxoVAm18rFkEVMv167hM4K2OcmQk
 
 # ══════════════════════════════════════════
 #  Setup — a template with one item attached, to seed a list from
@@ -370,6 +370,86 @@ Authorization: Bearer {{token}}
 
 
 # ══════════════════════════════════════════
+#  POST /lists/:id/items
+# ══════════════════════════════════════════
+
+### ✅ 201 — add createItem to createListWithEventDate; categoryId is
+#          derived from the item's own category, not caller-supplied
+POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}",
+  "quantity": 3,
+  "notes": "manual add test"
+}
+
+###
+
+### ❌ 409 — adding the same item to the same list again conflicts
+POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing itemId
+POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — invalid itemId (not a UUID)
+POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "not-a-uuid"
+}
+
+###
+
+### ❌ 404 — list does not exist
+POST {{host}}/lists/00000000-0000-0000-0000-000000000000/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — invalid list id
+POST {{host}}/lists/not-a-uuid/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{createItem.response.body.id}}"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+Content-Type: application/json
+
+{
+  "itemId": "{{createItem.response.body.id}}"
+}
+
+
+# ══════════════════════════════════════════
 #  Cleanup
 # ══════════════════════════════════════════
 #
@@ -377,8 +457,10 @@ Authorization: Bearer {{token}}
 #  hard-delete, so lists created in this file stay in the DB (archived).
 #  Archive the remaining two lists here so ItemIsInUse (which only counts
 #  non-archived list references) stops blocking the item/category deletes
-#  below — createListFromTemplate is the one that actually references
-#  createItem via packing_list_items.
+#  below — both createListFromTemplate (seeded from the template) and
+#  createListWithEventDate (PACK-012's POST /lists/:id/items section added
+#  createItem to it directly) now reference createItem via
+#  packing_list_items, so both need archiving before it's free to delete.
 
 ### 204 — archive createListWithEventDate
 DELETE {{host}}/lists/{{createListWithEventDate.response.body.id}}
