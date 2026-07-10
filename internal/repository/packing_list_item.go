@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
@@ -33,27 +32,21 @@ func (r *PackingListRepository) AddPackingListItem(ctx context.Context, listID, 
 
 // UpdatePackingListItem updates quantity/notes/sort_order/is_packed (nil =
 // unchanged for each field independently).
-//
-// PACK-013 stub: isPacked is accepted (signature matches the interface) but
-// not yet persisted — the COALESCE list below doesn't include it yet. This
-// keeps the pre-existing quantity/notes/sortOrder behavior real and passing
-// while leaving is_packed's actual persistence for Phase A to implement;
-// tests asserting isPacked took effect fail on the assertion, not a panic
-// or build error.
 func (r *PackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error) {
 	query := `
 		WITH updated AS (
 			UPDATE packing_list_items
 			SET quantity = COALESCE($1, quantity),
 			    notes = COALESCE($2, notes),
-			    sort_order = COALESCE($3, sort_order)
-			WHERE list_id = $4 AND item_id = $5
+			    sort_order = COALESCE($3, sort_order),
+			    is_packed = COALESCE($4, is_packed)
+			WHERE list_id = $5 AND item_id = $6
 			RETURNING item_id, category_id, quantity, notes, is_packed, sort_order
 		)
 		SELECT updated.item_id, items.name, updated.category_id, updated.quantity, updated.notes, updated.is_packed, updated.sort_order
 		FROM updated JOIN items ON items.id = updated.item_id
 	`
-	row := r.db.QueryRowContext(ctx, query, quantity, notes, sortOrder, listID, itemID)
+	row := r.db.QueryRowContext(ctx, query, quantity, notes, sortOrder, isPacked, listID, itemID)
 	item, err := scanPackingListItem(row.Scan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update packing list item: %w", err)
@@ -61,16 +54,22 @@ func (r *PackingListRepository) UpdatePackingListItem(ctx context.Context, listI
 	return item, nil
 }
 
-// PackAllItems sets is_packed = true for every item on listID. PACK-013
-// stub, not yet implemented.
+// PackAllItems sets is_packed = true for every item on listID.
 func (r *PackingListRepository) PackAllItems(ctx context.Context, listID string) error {
-	return errors.New("not implemented")
+	_, err := r.db.ExecContext(ctx, `UPDATE packing_list_items SET is_packed = true WHERE list_id = $1`, listID)
+	if err != nil {
+		return fmt.Errorf("failed to pack all items: %w", err)
+	}
+	return nil
 }
 
-// UnpackAllItems sets is_packed = false for every item on listID. PACK-013
-// stub, not yet implemented.
+// UnpackAllItems sets is_packed = false for every item on listID.
 func (r *PackingListRepository) UnpackAllItems(ctx context.Context, listID string) error {
-	return errors.New("not implemented")
+	_, err := r.db.ExecContext(ctx, `UPDATE packing_list_items SET is_packed = false WHERE list_id = $1`, listID)
+	if err != nil {
+		return fmt.Errorf("failed to unpack all items: %w", err)
+	}
+	return nil
 }
 
 // RemovePackingListItem removes itemID from listID.
