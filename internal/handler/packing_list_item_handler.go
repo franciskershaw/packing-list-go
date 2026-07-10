@@ -183,10 +183,36 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// RemoveItem handles DELETE /lists/:id/items/:itemId. PACK-012 stub, not
-// yet implemented.
+// RemoveItem handles DELETE /lists/:id/items/:itemId.
 func (h *PackingListHandler) RemoveItem(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	list, _, ok := h.requireOwnedPackingList(c)
+	if !ok {
+		return
+	}
+	listID := list.ID.String()
+
+	itemID := c.Param("itemId")
+	if _, err := uuid.Parse(itemID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid itemId"})
+		return
+	}
+
+	exists, err := h.repo.PackingListItemExists(c.Request.Context(), listID, itemID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check packing list item"})
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "packing list item not found"})
+		return
+	}
+
+	if err := h.repo.RemovePackingListItem(c.Request.Context(), listID, itemID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove packing list item"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // BulkAddItems handles POST /lists/:id/items/bulk. PACK-012 stub, not yet

@@ -19,7 +19,7 @@
 # since categoryId would resolve to an error body instead of an id).
 
 @host  = http://localhost:8080
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM2OTk4NjAsImlhdCI6MTc4MzY5ODk2MH0.Q0n2wlYQPIdvVxGNqpMf7UAlCJcuOWBpvkoQtuH2ZNw
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM3MDAxMzMsImlhdCI6MTc4MzY5OTIzM30.B6gbQYR7GGxqLqn4IYrP2c8WkoeLeTaHBRfpGsroBws
 
 
 # ══════════════════════════════════════════
@@ -619,6 +619,120 @@ Authorization: Bearer {{token}}
 
 ### cleanup — delete this section's category
 DELETE {{host}}/categories/{{patchItemSetupCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
+#  DELETE /lists/:id/items/:itemId
+# ══════════════════════════════════════════
+#
+#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
+#  setup and cleanup below), no earlier sections needed.
+
+### setup — a category for this section's item
+# @name removeItemSetupCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Remove Item Test — Category {{$guid}}"
+}
+
+###
+
+### setup — an item in that category
+# @name removeItemSetupItem
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Remove Item Test — Item {{$guid}}",
+  "categoryId": "{{removeItemSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — a list to attach it to
+# @name removeItemSetupList
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Remove Item Test — List {{$guid}}"
+}
+
+###
+
+### setup — attach the item to the list
+POST {{host}}/lists/{{removeItemSetupList.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{removeItemSetupItem.response.body.id}}"
+}
+
+###
+
+### ❌ 404 — item not on this list (wrong item id)
+DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — list does not exist
+DELETE {{host}}/lists/00000000-0000-0000-0000-000000000000/items/{{removeItemSetupItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid itemId
+DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid list id
+DELETE {{host}}/lists/not-a-uuid/items/{{removeItemSetupItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/{{removeItemSetupItem.response.body.id}}
+
+###
+
+### ✅ 204 — remove the item from the list
+DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/{{removeItemSetupItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — removing it again (already gone) now correctly 404s
+DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/{{removeItemSetupItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — archive this section's list
+DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's item (already off the list, so this
+#            works even though ItemIsInUse would otherwise block it)
+DELETE {{host}}/items/{{removeItemSetupItem.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's category
+DELETE {{host}}/categories/{{removeItemSetupCategory.response.body.id}}
 Authorization: Bearer {{token}}
 
 
