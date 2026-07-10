@@ -130,3 +130,20 @@ project kickoff.
 - `.http`: first ticket to extend an *existing* self-contained section
   (inserting new cases before its own cleanup) rather than only ever
   creating fresh ones.
+
+## 2026-07-10 — PACK-014 — Security hardening shipped; handoff-doc archive near-miss caught in time
+
+- No rework — both ACs (refresh-cookie `Secure`/`SameSite`, CSRF
+  `crypto/rand`) matched the interview's design on the first
+  implementation pass, tests green.
+- **Pattern**: when a ticket was split out of a bundled `grill-me`
+  findings archive, check whether that archive is still parked at the new
+  ticket's own handoff-doc filename before writing over it — "handoff doc
+  already exists" doesn't always mean "this ticket's own prior draft."
+  Here `docs/handoffs/PACK-014.md` still held items 3–12 that
+  PACK-015–020 need; caught before writing, archive moved to
+  `docs/handoffs/epic-6-findings.md`.
+- Also worth noting: adding a new field to an existing handler's
+  dependency (`cfg.Environment`) surfaced 8 test call sites silently
+  passing `nil` for it — a quick grep for existing constructor callers
+  before assuming a new field is additive-only paid off.

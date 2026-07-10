@@ -138,3 +138,7 @@ Key decisions from the interview:
   existing `TestGenerateState`, `TestValidateState`,
   `TestValidateStateExpiry` must still pass unchanged after the RNG swap.
 - No `.http` file (see Non-goals).
+
+## Close-out
+
+Completed 2026-07-10. Retro entry in LESSONS.md.

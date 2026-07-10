@@ -192,8 +192,7 @@ real, implementation-ready handoff doc.)*
     (`internal/handler/auth_handler.go`).
   - Switch OAuth CSRF state generation from `math/rand` to `crypto/rand`
     (`internal/auth/google.go`).
-  - **Status: handoff doc ready, implementation not started.** See
-    `docs/handoffs/PACK-014.md` (real handoff) and
+  - **Status: Done.** See `docs/handoffs/PACK-014.md` (real handoff) and
     `docs/handoffs/epic-6-findings.md` items 1-2 (source findings).
 - **PACK-015** — Thread `config.Config` through `db.go` and `jwt.go`.
   - Stop re-reading `DATABASE_URL`/`JWT_SECRET_ACCESS`/`JWT_SECRET_REFRESH`
