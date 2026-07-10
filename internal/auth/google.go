@@ -2,8 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"sync"
 	"time"
 
@@ -65,7 +66,11 @@ func (g *GoogleOAuthManager) GenerateState() string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	state := make([]byte, 32)
 	for i := range state {
-		state[i] = charset[rand.Intn(len(charset))]
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			panic(fmt.Errorf("crypto/rand failed generating OAuth state: %w", err))
+		}
+		state[i] = charset[n.Int64()]
 	}
 	stateStr := string(state)
 

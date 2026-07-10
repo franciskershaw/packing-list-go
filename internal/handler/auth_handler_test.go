@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/franciskershaw/packing-list-go/config"
 	"github.com/franciskershaw/packing-list-go/internal/auth"
 	"github.com/franciskershaw/packing-list-go/internal/handler"
 	"github.com/franciskershaw/packing-list-go/internal/models"
@@ -92,6 +93,11 @@ func newTestRouter(h *handler.AuthHandler) *gin.Engine {
 	return r
 }
 
+// testConfig builds a minimal *config.Config for handler construction.
+func testConfig(environment string) *config.Config {
+	return &config.Config{Environment: environment}
+}
+
 func testUser() *models.User {
 	return &models.User{
 		ID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),
@@ -124,7 +130,7 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
 	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
@@ -148,6 +154,50 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	}
 	assert.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
 	assert.True(t, refreshCookie.HttpOnly)
+	assert.False(t, refreshCookie.Secure, "expected Secure=false in development")
+	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
+
+	oauthMgr.AssertExpectations(t)
+	userRepo.AssertExpectations(t)
+}
+
+func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+
+	fakeToken := &oauth2.Token{}
+	fakeClaims := &auth.IDTokenClaims{
+		Email:       "test@example.com",
+		GoogleID:    "google-123",
+		DisplayName: "Test User",
+		AvatarURL:   "https://example.com/avatar.png",
+	}
+	user := testUser()
+
+	oauthMgr.On("ValidateState", "valid-state").Return(true)
+	oauthMgr.On("ExchangeCodeForToken", mock.Anything, "auth-code").Return(fakeToken, nil)
+	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
+	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("production"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	cookies := w.Result().Cookies()
+	var refreshCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "refreshToken" {
+			refreshCookie = c
+		}
+	}
+	assert.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
+	assert.True(t, refreshCookie.Secure, "expected Secure=true in production")
+	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
 
 	oauthMgr.AssertExpectations(t)
 	userRepo.AssertExpectations(t)
@@ -159,7 +209,7 @@ func TestGoogleCallback_InvalidState(t *testing.T) {
 
 	oauthMgr.On("ValidateState", "bad-state").Return(false)
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=bad-state", nil)
@@ -174,7 +224,7 @@ func TestGoogleCallback_MissingCode(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?state=some-state", nil)
@@ -188,7 +238,7 @@ func TestGoogleCallback_MissingState(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code", nil)
@@ -212,7 +262,7 @@ func TestRefreshToken_ValidCookie(t *testing.T) {
 
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil)
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
@@ -234,7 +284,7 @@ func TestRefreshToken_MissingCookie(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
@@ -248,7 +298,7 @@ func TestRefreshToken_InvalidToken(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
@@ -265,7 +315,7 @@ func TestLogout_ClearsCookie(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
 
-	h := handler.NewAuthHandler(userRepo, oauthMgr, nil)
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
@@ -290,5 +340,7 @@ func TestLogout_ClearsCookie(t *testing.T) {
 	}
 	assert.NotNil(t, refreshCookie)
 	assert.True(t, refreshCookie.MaxAge < 0, "expected refreshToken cookie to be expired, got MaxAge=%d", refreshCookie.MaxAge)
+	assert.False(t, refreshCookie.Secure, "expected Secure=false in development")
+	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
 }
 

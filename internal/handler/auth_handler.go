@@ -34,6 +34,15 @@ func NewAuthHandler(userRepo UserRepository, oauthManager OAuthManager, cfg *con
 	return &AuthHandler{userRepo: userRepo, oauthManager: oauthManager, cfg: cfg}
 }
 
+// setRefreshCookie sets the refreshToken cookie with consistent
+// Secure/SameSite/HttpOnly attributes for both issuing (GoogleCallback)
+// and clearing (Logout) it. SameSite is Lax rather than None because no
+// cross-origin frontend consumer exists yet; revisit if one is added.
+func (h *AuthHandler) setRefreshCookie(c *gin.Context, value string, maxAge int) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("refreshToken", value, maxAge, "/", "", h.cfg.Environment == "production", true)
+}
+
 func (h *AuthHandler) LoginWithGoogle(c *gin.Context) {
 	state := h.oauthManager.GenerateState()
 	authURL := h.oauthManager.GetAuthURL(state)
@@ -90,7 +99,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("refreshToken", refreshToken, 7*24*60*60, "/", "", false, true)
+	h.setRefreshCookie(c, refreshToken, 7*24*60*60)
 
 	c.JSON(http.StatusOK, gin.H{
 		"accessToken": accessToken,
@@ -132,6 +141,6 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	c.SetCookie("refreshToken", "", -1, "/", "", false, true)
+	h.setRefreshCookie(c, "", -1)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }

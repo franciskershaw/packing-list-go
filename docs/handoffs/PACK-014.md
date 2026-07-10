@@ -68,7 +68,7 @@ Key decisions from the interview:
 
 ## Acceptance criteria
 
-- [ ] **AC1 — Refresh-token cookie `Secure`/`SameSite`.**
+- [x] **AC1 — Refresh-token cookie `Secure`/`SameSite`.**
   - `config.Config` has a new `Environment string` field, populated by
     `Load()` via `getEnv("APP_ENV", "development")`.
   - `AuthHandler` gets a private `setRefreshCookie(c *gin.Context, value
@@ -81,7 +81,7 @@ Key decisions from the interview:
   - With `Environment == "development"` (or unset), the cookie's `Secure`
     attribute is `false`. With `Environment == "production"`, it's `true`.
     `SameSite` is `Lax` in both cases.
-- [ ] **AC2 — OAuth CSRF state uses `crypto/rand`.**
+- [x] **AC2 — OAuth CSRF state uses `crypto/rand`.**
   - `internal/auth/google.go`'s `GenerateState` no longer imports
     `math/rand`; it imports `crypto/rand` and `math/big`, and builds each
     of the 32 characters via `crypto/rand.Int(rand.Reader,

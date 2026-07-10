@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Port               string
+	Environment        string
 	DatabaseURL        string
 	JWTSecretAccess    string
 	JWTSecretRefresh   string
@@ -22,6 +23,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:               getEnv("PORT", "8080"),
+		Environment:        getEnv("APP_ENV", "development"),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		JWTSecretAccess:    os.Getenv("JWT_SECRET_ACCESS"),
 		JWTSecretRefresh:   os.Getenv("JWT_SECRET_REFRESH"),
