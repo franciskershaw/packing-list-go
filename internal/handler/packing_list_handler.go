@@ -110,9 +110,33 @@ func (h *PackingListHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, lists)
 }
 
-// GetByID handles GET /lists/:id. PACK-011 stub, not yet implemented.
+// GetByID handles GET /lists/:id — full detail, items grouped by category.
+// Works identically for archived lists; archiving only changes which List
+// view a list appears in, not whether its detail is reachable.
 func (h *PackingListHandler) GetByID(c *gin.Context) {
-	panic("not implemented")
+	userID, ok := userIDFromCtx(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	list, err := h.repo.GetPackingListByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		return
+	}
+	if !isPackingListOwned(list, userID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "packing list not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, list)
 }
 
 // Update handles PATCH /lists/:id. PACK-011 stub, not yet implemented.
