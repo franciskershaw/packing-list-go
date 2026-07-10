@@ -19,7 +19,7 @@
 # since categoryId would resolve to an error body instead of an id).
 
 @host  = http://localhost:8080
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM3MDAxMzMsImlhdCI6MTc4MzY5OTIzM30.B6gbQYR7GGxqLqn4IYrP2c8WkoeLeTaHBRfpGsroBws
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM3MDAzMjQsImlhdCI6MTc4MzY5OTQyNH0.K0hIHMdqPJjNdRYxJpYNl6rAoJ8M97HQ--_zOlP0-Nw
 
 
 # ══════════════════════════════════════════
@@ -733,6 +733,183 @@ Authorization: Bearer {{token}}
 
 ### cleanup — delete this section's category
 DELETE {{host}}/categories/{{removeItemSetupCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
+#  POST /lists/:id/items/bulk
+# ══════════════════════════════════════════
+#
+#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
+#  setup and cleanup below), no earlier sections needed.
+
+### setup — a category with two items, to exercise "some already on the list"
+# @name bulkSetupCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bulk Add Test — Category {{$guid}}"
+}
+
+###
+
+### setup — first item (added to the list directly, below — bulk-add
+#          should skip it)
+# @name bulkSetupItemA
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bulk Add Test — Item A {{$guid}}",
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — second item (not yet on the list — bulk-add should add it)
+# @name bulkSetupItemB
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bulk Add Test — Item B {{$guid}}",
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — a list
+# @name bulkSetupList
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bulk Add Test — List {{$guid}}"
+}
+
+###
+
+### setup — add item A directly, so it's already on the list before bulk-add runs
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{bulkSetupItemA.response.body.id}}"
+}
+
+###
+
+### ✅ 201 — bulk-add the category: item A skipped (already on the list),
+#          only item B appears in the response
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### ✅ 201 — running it again now returns [] (both items already on the list)
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — missing categoryId
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — invalid categoryId (not a UUID)
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "not-a-uuid"
+}
+
+###
+
+### ❌ 400 — categoryId does not exist / not accessible
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "00000000-0000-0000-0000-000000000000"
+}
+
+###
+
+### ❌ 404 — list does not exist
+POST {{host}}/lists/00000000-0000-0000-0000-000000000000/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### ❌ 400 — invalid list id
+POST {{host}}/lists/not-a-uuid/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+Content-Type: application/json
+
+{
+  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+}
+
+###
+
+### cleanup — archive this section's list
+DELETE {{host}}/lists/{{bulkSetupList.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's items
+DELETE {{host}}/items/{{bulkSetupItemA.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+DELETE {{host}}/items/{{bulkSetupItemB.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's category
+DELETE {{host}}/categories/{{bulkSetupCategory.response.body.id}}
 Authorization: Bearer {{token}}
 
 
