@@ -190,7 +190,9 @@ Status reflects the state of the code as of 2026-07-07.
     `UserId`/`userId` casing inconsistent with `UserID` used everywhere
     else; `parseName` duplicated across category/item/template handlers
     instead of shared; hand-rolled `contains()` helper duplicates
-    `strings.Contains`; `go.mod` has every dependency marked `// indirect`.
+    `strings.Contains`; `go.mod` has every dependency marked `// indirect`;
+    `validateTemplateItemNotes` is named for templates but reused as-is by
+    PACK-012 for packing-list items too.
   - **Status: Not started.** Draft handoff at
     `docs/handoffs/PACK-014.md` — this ticket has **not** been through
     `grill-me` yet. The draft preserves the full 2026-07-09 review output

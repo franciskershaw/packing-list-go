@@ -171,6 +171,19 @@ fire-alarm list.
     in this same session to explicitly cover test files, not just
     implementation code.
 
+11. **`validateTemplateItemNotes` is named for templates but also used by
+    list items.** Found during PACK-012's `grill-me` (2026-07-10):
+    `internal/handler/template_item_handler.go`'s `validateTemplateItemNotes`
+    (trims, 200-char limit) is reused as-is by PACK-012's
+    `packing_list_item_handler.go` for packing-list item notes, since it's
+    already generic in behavior — only its name is template-specific. Not
+    renamed in PACK-012 since that would mean touching PACK-009's
+    already-shipped file for a purely cosmetic reason, outside PACK-012's
+    stated scope. Same class of drift as item 7
+    (`parseName` duplication) and item 10 above — a shared helper whose
+    name no longer reflects all of its callers. Rename to something
+    generic (e.g. `validateItemNotes`) and update both call sites.
+
 ### Explicitly reviewed and dismissed (not worth doing, recorded so it isn't re-litigated)
 
 - Redundant `userIDFromCtx` guard at the top of every handler, even though
@@ -193,7 +206,7 @@ fire-alarm list.
 
 Run `/grill-me` against this doc. Likely questions for that session:
 whether items 1-2 (security) ship as their own small ticket separate from
-3-10 (architecture/cleanup); whether item 3 (config threading) is worth
+3-11 (architecture/cleanup); whether item 3 (config threading) is worth
 doing now or deferred until more of the app exists to make the DI payoff
-clearer; whether items 6-10 are worth a dedicated ticket or should ride
+clearer; whether items 6-11 are worth a dedicated ticket or should ride
 along with whatever ticket touches those files next.
