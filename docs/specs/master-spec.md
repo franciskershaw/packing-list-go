@@ -215,7 +215,9 @@ real, implementation-ready handoff doc.)*
     Google's discovery endpoint.
   - While touching that file: replace its hand-rolled `contains()` helper
     with `strings.Contains`.
-  - **Status: not started.** See `docs/handoffs/epic-6-findings.md` items 4, 8.
+  - **Status: handoff doc ready, implementation not started.** See
+    `docs/handoffs/PACK-017.md` (real handoff) and
+    `docs/handoffs/epic-6-findings.md` items 4, 8 (source findings).
 - **PACK-018** — Naming & duplication cleanup.
   - `UserId`/`userId` → `UserID`/`userID` casing (`internal/auth/jwt.go`,
     `internal/middleware/auth.go`, `internal/handler/context.go`).

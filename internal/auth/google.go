@@ -53,12 +53,20 @@ func NewGoogleOAuthManager(clientID, clientSecret, redirectURL string) (*GoogleO
 	// Create ID token verifier
 	verifier := provider.Verifier(&oidc.Config{ClientID: clientID})
 
+	return newGoogleOAuthManager(config, verifier), nil
+}
+
+// newGoogleOAuthManager builds a manager from an already-constructed
+// config and verifier, so tests can inject a fake config directly
+// instead of performing a live network call to Google's discovery
+// endpoint (which NewGoogleOAuthManager still does for real callers).
+func newGoogleOAuthManager(config *oauth2.Config, verifier *oidc.IDTokenVerifier) *GoogleOAuthManager {
 	return &GoogleOAuthManager{
 		config:          config,
 		verifier:        verifier,
 		stateStore:      make(map[string]time.Time),
 		stateExpiryTime: 10 * time.Minute,
-	}, nil
+	}
 }
 
 // GenerateState creates a random state string for CSRF protection
