@@ -47,10 +47,15 @@ API", "this service") instead.
   database. Run with: `DATABASE_URL=$DATABASE_URL go test ./internal/repository/...`
   Never spin up Docker or a local database instance for tests on this project.
 - **TDD in Go**: write the test file first, then create a minimal stub
-  (empty handler struct + method bodies that `panic("not implemented")`)
-  so the test file compiles. Run tests to confirm runtime failures before
-  implementing. Do not write implementation code until you have seen the
-  tests fail at runtime.
+  (empty handler struct + method bodies) so the test file compiles. Stub
+  bodies must produce an assertable failure, not a panic: repository stubs
+  return `nil, errors.New("not implemented")`; handler stubs write a real
+  (if wrong) HTTP response, e.g. `http.StatusNotImplemented`. A literal
+  `panic()` gets recovered and then re-raised by Go's `testing.tRunner`,
+  aborting the entire test binary on the first stub hit — so only one
+  test's failure is visible per run instead of the whole suite's. Run
+  tests to confirm every test fails at runtime for the right reason
+  before implementing.
 
 ## Docs
 
