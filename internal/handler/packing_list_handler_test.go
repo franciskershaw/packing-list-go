@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -23,6 +24,7 @@ const (
 	testPackingListTemplateID = "66666666-6666-6666-6666-666666666666"
 	testPackingListItemID     = "77777777-7777-7777-7777-777777777777"
 	testPackingListCategoryID = "88888888-8888-8888-8888-888888888888"
+	testPackingListID         = "99999999-9999-9999-9999-999999999999"
 )
 
 // testPackingListTemplateIDCopy exists so mock.On can take its address —
@@ -43,6 +45,35 @@ func (m *MockPackingListRepository) CreatePackingList(ctx context.Context, userI
 	return args.Get(0).(*models.PackingList), args.Error(1)
 }
 
+func (m *MockPackingListRepository) GetPackingLists(ctx context.Context, userID string, archived bool) ([]models.PackingList, error) {
+	args := m.Called(ctx, userID, archived)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.PackingList), args.Error(1)
+}
+
+func (m *MockPackingListRepository) GetPackingListByID(ctx context.Context, id string) (*models.PackingListDetail, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.PackingListDetail), args.Error(1)
+}
+
+func (m *MockPackingListRepository) UpdatePackingList(ctx context.Context, id string, name *string, eventDate *string) (*models.PackingListDetail, error) {
+	args := m.Called(ctx, id, name, eventDate)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.PackingListDetail), args.Error(1)
+}
+
+func (m *MockPackingListRepository) ArchivePackingList(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 // --- Helpers ---
 
 func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo handler.TemplateLookupRepository) *gin.Engine {
@@ -51,6 +82,10 @@ func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo h
 	authed := r.Group("/")
 	authed.Use(middleware.AuthMiddleware())
 	authed.POST("/lists", h.Create)
+	authed.GET("/lists", h.List)
+	authed.GET("/lists/:id", h.GetByID)
+	authed.PATCH("/lists/:id", h.Update)
+	authed.DELETE("/lists/:id", h.Delete)
 	return r
 }
 
@@ -72,6 +107,18 @@ func packingListResult(items []models.PackingListItem) *models.PackingList {
 		Name:   "My List",
 		UserID: uuid.MustParse(testPackingListUserID),
 		Items:  items,
+	}
+}
+
+func packingListDetail(ownerID string, categories []models.PackingListCategory) *models.PackingListDetail {
+	if categories == nil {
+		categories = []models.PackingListCategory{}
+	}
+	return &models.PackingListDetail{
+		ID:         uuid.MustParse(testPackingListID),
+		Name:       "My List",
+		UserID:     uuid.MustParse(ownerID),
+		Categories: categories,
 	}
 }
 
@@ -277,4 +324,475 @@ func TestPackingListCreate_Unauthorized(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- GET /lists ---
+
+func TestPackingListList_Active(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	lists := []models.PackingList{{ID: uuid.New(), Name: "Active List", UserID: uuid.MustParse(testPackingListUserID), Items: []models.PackingListItem{}}}
+	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, false).Return(lists, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body, 1)
+	assert.Equal(t, "Active List", body[0]["name"])
+	assert.Equal(t, []any{}, body[0]["items"])
+	assert.NotContains(t, body[0], "archivedAt")
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListList_ArchivedTrue(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	lists := []models.PackingList{{ID: uuid.New(), Name: "Archived List", UserID: uuid.MustParse(testPackingListUserID), Items: []models.PackingListItem{}}}
+	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, true).Return(lists, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists?archived=true", nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListList_ArchivedGarbageFallsBackToActive(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, false).Return([]models.PackingList{}, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists?archived=banana", nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListList_Unauthorized(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	repo.AssertExpectations(t)
+}
+
+// --- GET /lists/:id ---
+
+func TestPackingListGetByID_Owned(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	categories := []models.PackingListCategory{
+		{ID: uuid.MustParse(testPackingListCategoryID), Name: "Clothes", Items: []models.PackingListDetailItem{
+			{ItemID: uuid.MustParse(testPackingListItemID), Name: "Socks", Quantity: 2, IsPacked: false},
+		}},
+	}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, categories), nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	cats, ok := body["categories"].([]any)
+	require.True(t, ok)
+	require.Len(t, cats, 1)
+	cat := cats[0].(map[string]any)
+	assert.Equal(t, "Clothes", cat["name"])
+	items := cat["items"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	assert.Equal(t, "Socks", item["name"])
+	assert.NotContains(t, item, "categoryId")
+	assert.NotContains(t, body, "archivedAt")
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListGetByID_NotOwned(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListGetByID_NotFound(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListGetByID_InvalidID(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists/not-a-uuid", nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListGetByID_Unauthorized(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	repo.AssertExpectations(t)
+}
+
+// --- PATCH /lists/:id ---
+
+func TestPackingListUpdate_NameOnly(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
+	newName := "Renamed List"
+	updated := packingListDetail(testPackingListUserID, nil)
+	updated.Name = newName
+	repo.On("UpdatePackingList", mock.Anything, testPackingListID, &newName, (*string)(nil)).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": newName}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, newName, body["name"])
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_EventDateOnly(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
+	eventDate := "2026-09-15"
+	updated := packingListDetail(testPackingListUserID, nil)
+	updated.EventDate = &eventDate
+	repo.On("UpdatePackingList", mock.Anything, testPackingListID, (*string)(nil), &eventDate).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"eventDate": eventDate}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, eventDate, body["eventDate"])
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_Both(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
+	newName := "Renamed List"
+	eventDate := "2026-10-01"
+	updated := packingListDetail(testPackingListUserID, nil)
+	updated.Name = newName
+	updated.EventDate = &eventDate
+	repo.On("UpdatePackingList", mock.Anything, testPackingListID, &newName, &eventDate).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": newName, "eventDate": eventDate}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_MissingBoth(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_EmptyName(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": ""}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_InvalidEventDateFormat(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"eventDate": "08-01-2026"}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_NotOwned(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": "New Name"}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_NotFound(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": "New Name"}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_InvalidID(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/not-a-uuid", jsonBody(t, map[string]any{"name": "New Name"}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_Unauthorized(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": "New Name"}))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUpdate_SucceedsOnArchivedList(t *testing.T) {
+	// The handler has no way to know a list is archived (archivedAt isn't
+	// exposed on the model), so this asserts the absence of any archived
+	// check: GetPackingListByID returning an owned list is enough for the
+	// update to proceed, whatever its archived state actually is.
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
+	newName := "Renamed Archived List"
+	updated := packingListDetail(testPackingListUserID, nil)
+	updated.Name = newName
+	repo.On("UpdatePackingList", mock.Anything, testPackingListID, &newName, (*string)(nil)).Return(updated, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": newName}))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	repo.AssertExpectations(t)
+}
+
+// --- DELETE /lists/:id ---
+
+func TestPackingListDelete_Success(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
+	repo.On("ArchivePackingList", mock.Anything, testPackingListID).Return(nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListDelete_NotOwned(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListDelete_NotFound(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListDelete_InvalidID(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodDelete, "/lists/not-a-uuid", nil)
+	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListDelete_Unauthorized(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListDelete_IdempotentOnAlreadyArchived(t *testing.T) {
+	// Mirrors the repository-level idempotency guarantee: the handler makes
+	// no "already archived" check of its own, so calling Delete a second
+	// time follows the exact same path and still returns 204.
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil).Twice()
+	repo.On("ArchivePackingList", mock.Anything, testPackingListID).Return(nil).Twice()
+
+	r := newPackingListTestRouter(repo, templateRepo)
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
+		req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNoContent, w.Code)
+	}
+	repo.AssertExpectations(t)
 }

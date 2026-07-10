@@ -1,4 +1,4 @@
-# Packing List API — Packing List Creation
+# Packing List API — Packing List Creation & Management
 #
 # SETUP (do this once before running any request):
 #
@@ -86,6 +86,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 201 — name + eventDate
+# @name createListWithEventDate
 POST {{host}}/lists
 Content-Type: application/json
 Authorization: Bearer {{token}}
@@ -189,22 +190,204 @@ Content-Type: application/json
 
 
 # ══════════════════════════════════════════
+#  GET /lists
+# ══════════════════════════════════════════
+
+### ✅ 200 — active lists: createListNameOnly, createListWithEventDate,
+#          createListFromTemplate, ordered most-recently-updated first
+GET {{host}}/lists
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — archived lists (empty until the DELETE section below archives one)
+GET {{host}}/lists?archived=true
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — garbage archived value behaves like the default (active-only)
+GET {{host}}/lists?archived=banana
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+GET {{host}}/lists
+
+
+# ══════════════════════════════════════════
+#  GET /lists/:id
+# ══════════════════════════════════════════
+
+### ✅ 200 — grouped by category: one category ("Packing List Test —
+#          Category") containing createItem, quantity 2, notes "pack spares"
+GET {{host}}/lists/{{createListFromTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid id
+GET {{host}}/lists/not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — does not exist
+GET {{host}}/lists/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+GET {{host}}/lists/{{createListFromTemplate.response.body.id}}
+
+
+# ══════════════════════════════════════════
+#  PATCH /lists/:id
+# ══════════════════════════════════════════
+
+### ✅ 200 — rename only
+PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Weekend Hiking (renamed)"
+}
+
+###
+
+### ✅ 200 — eventDate only
+PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "eventDate": "2026-09-01"
+}
+
+###
+
+### ❌ 400 — neither name nor eventDate present
+PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+###
+
+### ❌ 400 — invalid eventDate format
+PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "eventDate": "09-01-2026"
+}
+
+###
+
+### ❌ 404 — does not exist
+PATCH {{host}}/lists/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Should Fail"
+}
+
+###
+
+### ❌ 400 — invalid id
+PATCH {{host}}/lists/not-a-uuid
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Should Fail"
+}
+
+###
+
+### 🔒 401 — no token
+PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+Content-Type: application/json
+
+{
+  "name": "Should Fail"
+}
+
+
+# ══════════════════════════════════════════
+#  DELETE /lists/:id
+# ══════════════════════════════════════════
+
+### ❌ 400 — invalid id
+DELETE {{host}}/lists/not-a-uuid
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — does not exist
+DELETE {{host}}/lists/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+DELETE {{host}}/lists/{{createListNameOnly.response.body.id}}
+
+###
+
+### ✅ 204 — archive createListNameOnly (renamed above to "Weekend Hiking (renamed)")
+DELETE {{host}}/lists/{{createListNameOnly.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 204 — idempotent: archiving it again still succeeds, not an error
+DELETE {{host}}/lists/{{createListNameOnly.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — GET /lists?archived=true now includes it, GET /lists no longer does
+GET {{host}}/lists?archived=true
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 200 — GET /lists/:id still returns full detail for the archived list
+GET {{host}}/lists/{{createListNameOnly.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
 #  Cleanup
 # ══════════════════════════════════════════
 #
-#  There is no DELETE /lists/:id yet (PACK-011) — packing lists created here
-#  can't be cleaned up via the API. That includes the "Seeded From Template"
-#  list above, which copied createItem into packing_list_items — and
-#  ItemIsInUse blocks deleting an item referenced by any non-archived list
-#  (see PACK-007's TestItemIsInUse_ActiveListReference), so the item (and
-#  therefore its category) can't be cleaned up either until that list can be
-#  removed. Once PACK-011 ships DELETE /lists/:id, delete createListNameOnly /
-#  createListFromTemplate / the eventDate and error-path lists first, then
-#  re-run the item/category deletes below and confirm they now 204.
+#  DELETE /lists/:id now exists (PACK-011), but it only archives — there's no
+#  hard-delete, so lists created in this file stay in the DB (archived).
+#  Archive the remaining two lists here so ItemIsInUse (which only counts
+#  non-archived list references) stops blocking the item/category deletes
+#  below — createListFromTemplate is the one that actually references
+#  createItem via packing_list_items.
 
-### 204 — remove the item from the template (this part still succeeds — it
-#          only clears the template_items reference, not the one from the
-#          seeded packing list)
+### 204 — archive createListWithEventDate
+DELETE {{host}}/lists/{{createListWithEventDate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — archive createListFromTemplate
+DELETE {{host}}/lists/{{createListFromTemplate.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### 204 — remove the item from the template (clears the template_items reference)
 DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
 Authorization: Bearer {{token}}
 
@@ -216,14 +399,13 @@ Authorization: Bearer {{token}}
 
 ###
 
-### ❌ 409 — "item is in use and cannot be deleted" (expected for now — see
-#          note above; blocked by the still-live "Seeded From Template" list)
+### ✅ 204 — item can now be deleted: its only list reference (createListFromTemplate)
+#          is archived, and archived lists don't count for ItemIsInUse
 DELETE {{host}}/items/{{createItem.response.body.id}}
 Authorization: Bearer {{token}}
 
 ###
 
-### ❌ 409 — "category has items and cannot be deleted" (expected for now —
-#          the item above couldn't be removed, so the category still has it)
+### ✅ 204 — category can now be deleted too
 DELETE {{host}}/categories/{{createCategory.response.body.id}}
 Authorization: Bearer {{token}}

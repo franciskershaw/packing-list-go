@@ -12,6 +12,10 @@ import (
 
 type PackingListRepository interface {
 	CreatePackingList(ctx context.Context, userID, name string, eventDate *string, templateID *string) (*models.PackingList, error)
+	GetPackingLists(ctx context.Context, userID string, archived bool) ([]models.PackingList, error)
+	GetPackingListByID(ctx context.Context, id string) (*models.PackingListDetail, error)
+	UpdatePackingList(ctx context.Context, id string, name *string, eventDate *string) (*models.PackingListDetail, error)
+	ArchivePackingList(ctx context.Context, id string) error
 }
 
 // TemplateLookupRepository exposes just what PackingListHandler needs to
@@ -83,4 +87,25 @@ func (h *PackingListHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, created)
+}
+
+// List handles GET /lists and GET /lists?archived=true. PACK-011 stub, not
+// yet implemented.
+func (h *PackingListHandler) List(c *gin.Context) {
+	panic("not implemented")
+}
+
+// GetByID handles GET /lists/:id. PACK-011 stub, not yet implemented.
+func (h *PackingListHandler) GetByID(c *gin.Context) {
+	panic("not implemented")
+}
+
+// Update handles PATCH /lists/:id. PACK-011 stub, not yet implemented.
+func (h *PackingListHandler) Update(c *gin.Context) {
+	panic("not implemented")
+}
+
+// Delete handles DELETE /lists/:id. PACK-011 stub, not yet implemented.
+func (h *PackingListHandler) Delete(c *gin.Context) {
+	panic("not implemented")
 }
