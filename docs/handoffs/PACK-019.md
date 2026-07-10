@@ -102,3 +102,7 @@ files' internal plumbing only:
   after each file's retrofit, confirming identical test names and 0
   failures — not a new test, a regression check against the existing
   suite.
+
+## Close-out
+
+Completed 2026-07-10. Retro entry in LESSONS.md.

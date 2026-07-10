@@ -238,3 +238,14 @@ project kickoff.
   Neon themselves as a deliberate TDD step, with the real command:
   `set -a; source .env; set +a; go test ./internal/repository/... -v
   -count=1`.
+
+## 2026-07-10 — PACK-019 — doRequest retrofit shipped; clean ticket
+
+- No rework. All 5 ACs (167 call sites across 5 files, including a 5th
+  file — `packing_list_handler_test.go` — the archived finding wrongly
+  assumed already used `doRequest`) matched the interview's design, went
+  green first pass.
+- **Pattern**: for a large mechanical retrofit (same change repeated many
+  times), a scripted transformation + before/after test-name-list diffing
+  per file is a fast, safe verification method — reuse it next time a
+  ticket is "the same edit repeated N times."
