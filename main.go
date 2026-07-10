@@ -97,6 +97,7 @@ func main() {
 		authed.GET("/lists", packingListHandler.List)
 		authed.GET("/lists/:id", packingListHandler.GetByID)
 		authed.PATCH("/lists/:id", packingListHandler.Update)
+		authed.DELETE("/lists/:id", packingListHandler.Delete)
 	}
 
 	if err := server.Run(":" + cfg.Port); err != nil {

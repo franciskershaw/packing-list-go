@@ -204,7 +204,36 @@ func (h *PackingListHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// Delete handles DELETE /lists/:id. PACK-011 stub, not yet implemented.
+// Delete handles DELETE /lists/:id — soft delete via archived_at. Idempotent:
+// archiving an already-archived list still returns 204, no special-case
+// check needed since ArchivePackingList itself is unconditional.
 func (h *PackingListHandler) Delete(c *gin.Context) {
-	panic("not implemented")
+	userID, ok := userIDFromCtx(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	list, err := h.repo.GetPackingListByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		return
+	}
+	if !isPackingListOwned(list, userID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "packing list not found"})
+		return
+	}
+
+	if err := h.repo.ArchivePackingList(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to archive packing list"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

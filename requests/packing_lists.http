@@ -11,10 +11,15 @@
 # how template_items.http duplicates setup rather than depending on other
 # .http files) — send the setup section first, then everything else
 # references the captured IDs.
+#
+# Setup names include {{$guid}} so re-running this file never collides with
+# a previous run's leftover template/category/item (both have a per-user
+# uniqueness check — a stale same-named row from an incomplete prior run
+# would 409 on creation, which then cascades into a 400 on the item create
+# since categoryId would resolve to an error body instead of an id).
 
 @host  = http://localhost:8080
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM2MjU5NTgsImlhdCI6MTc4MzYyNTA1OH0.TFrRuv004OmvxaeSIKuv6q3eTiwhL4nbgGCRX_YW6tA
-
+@token = 
 
 # ══════════════════════════════════════════
 #  Setup — a template with one item attached, to seed a list from
@@ -27,7 +32,7 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-  "name": "Packing List Test — Template"
+  "name": "Packing List Test — Template {{$guid}}"
 }
 
 ###
@@ -39,7 +44,7 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-  "name": "Packing List Test — Category"
+  "name": "Packing List Test — Category {{$guid}}"
 }
 
 ###
@@ -51,7 +56,7 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-  "name": "Packing List Test — Item",
+  "name": "Packing List Test — Item {{$guid}}",
   "categoryId": "{{createCategory.response.body.id}}"
 }
 
