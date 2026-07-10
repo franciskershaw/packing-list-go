@@ -48,6 +48,13 @@ API", "this service") instead.
 ## Testing
 
 - **Handler tests** need no database. Run with: `go test ./internal/handler/...`
+  New handler test files should use the shared `doRequest` helper in
+  `internal/handler/handler_test_helpers_test.go` to send requests
+  (`req := httptest.NewRequest(...)` + headers + `NewRecorder` +
+  `ServeHTTP`, collapsed to one call) rather than repeating that block per
+  test — existing files (`category_handler_test.go`,
+  `item_handler_test.go`, etc.) predate this helper and are a tech-debt
+  retrofit candidate, not something to rewrite incidentally.
 - **Repository tests** are integration tests that hit the real Neon dev
   database. Run with: `DATABASE_URL=$DATABASE_URL go test ./internal/repository/...`
   Never spin up Docker or a local database instance for tests on this project.

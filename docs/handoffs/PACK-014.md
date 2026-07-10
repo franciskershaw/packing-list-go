@@ -152,6 +152,25 @@ fire-alarm list.
    direct dependencies uncommented. Doesn't affect the build, just muddies
    "what's actually a direct dependency" at a glance.
 
+10. **Handler test files repeat an identical HTTP-request-construction
+    block instead of sharing a helper.** Found during PACK-011's retro
+    (2026-07-10): `httptest.NewRequest(...)` + `Content-Type` +
+    `Authorization` header + `httptest.NewRecorder()` + `r.ServeHTTP(...)`
+    appears verbatim ~150+ times across `category_handler_test.go` (24),
+    `template_handler_test.go` (30), `item_handler_test.go` (37),
+    `template_item_handler_test.go` (38), and `packing_list_handler_test.go`
+    (37). A `doRequest` helper collapsing this to one call now exists in
+    `internal/handler/handler_test_helpers_test.go` (added as part of this
+    finding, alongside a `CLAUDE.md` note that new handler test files
+    should use it) — but the four pre-existing files above still use the
+    old repeated-block style and are the actual retrofit candidate here.
+    Same class of drift as item 7 (`parseName` duplication) and the
+    2026-07-08 (PACK-008) `LESSONS.md` entry — duplication creeping in
+    despite an explicit standing "self-scan for duplication before
+    presenting work as done" habit, which is why that habit was tightened
+    in this same session to explicitly cover test files, not just
+    implementation code.
+
 ### Explicitly reviewed and dismissed (not worth doing, recorded so it isn't re-litigated)
 
 - Redundant `userIDFromCtx` guard at the top of every handler, even though
@@ -174,7 +193,7 @@ fire-alarm list.
 
 Run `/grill-me` against this doc. Likely questions for that session:
 whether items 1-2 (security) ship as their own small ticket separate from
-3-9 (architecture/cleanup); whether item 3 (config threading) is worth
+3-10 (architecture/cleanup); whether item 3 (config threading) is worth
 doing now or deferred until more of the app exists to make the DI payoff
-clearer; whether items 6-9 are worth a dedicated ticket or should ride
+clearer; whether items 6-10 are worth a dedicated ticket or should ride
 along with whatever ticket touches those files next.

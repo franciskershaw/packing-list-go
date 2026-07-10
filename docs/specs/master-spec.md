@@ -180,7 +180,11 @@ Status reflects the state of the code as of 2026-07-07.
     and `internal/auth/jwt.go` re-read env vars directly instead of
     accepting parsed config.
   - Test quality: `internal/auth/google_test.go` makes real network calls
-    to Google's OIDC discovery endpoint.
+    to Google's OIDC discovery endpoint; handler test files
+    (`category_handler_test.go`, `template_handler_test.go`,
+    `item_handler_test.go`, `template_item_handler_test.go`) repeat an
+    identical HTTP-request-construction block ~150+ times instead of
+    sharing the `doRequest` helper introduced during PACK-011's retro.
   - Consistency: `internal/repository/user.go` doesn't follow the
     `errors.Is(sql.ErrNoRows) → nil, nil` convention every other repo uses;
     `UserId`/`userId` casing inconsistent with `UserID` used everywhere
