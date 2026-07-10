@@ -366,9 +366,15 @@ func TestPackingListItemUpdate_SortOrderOnlyNegative(t *testing.T) {
 }
 
 func TestPackingListItemUpdate_MissingAllThree(t *testing.T) {
+	// Ownership is checked before the body, mirroring
+	// TemplateHandler.UpdateItem's requireOwnedTemplate-first order (via
+	// requireOwnedPackingList here) — so GetPackingListByID is still
+	// expected even though the body itself is what ultimately 400s.
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
@@ -377,6 +383,7 @@ func TestPackingListItemUpdate_MissingAllThree(t *testing.T) {
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
 }
 
 func TestPackingListItemUpdate_ItemNotOnList(t *testing.T) {
