@@ -23,8 +23,18 @@ func (h *PackingListHandler) PackAll(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// UnpackAll handles POST /lists/:id/unpack-all. PACK-013 stub, not yet
-// implemented.
+// UnpackAll handles POST /lists/:id/unpack-all — resets every item on the
+// list to unpacked. 204, no body, same reasoning as PackAll.
 func (h *PackingListHandler) UnpackAll(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	list, _, ok := h.requireOwnedPackingList(c)
+	if !ok {
+		return
+	}
+
+	if err := h.repo.UnpackAllItems(c.Request.Context(), list.ID.String()); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unpack all items"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

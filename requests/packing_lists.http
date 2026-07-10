@@ -1071,6 +1071,135 @@ Authorization: Bearer {{token}}
 
 
 # ══════════════════════════════════════════
+#  POST /lists/:id/unpack-all
+# ══════════════════════════════════════════
+#
+#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
+#  setup and cleanup below), no earlier sections needed.
+
+### setup — a category with two items
+# @name unpackAllSetupCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Unpack All Test — Category {{$guid}}"
+}
+
+###
+
+### setup — first item
+# @name unpackAllSetupItemA
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Unpack All Test — Item A {{$guid}}",
+  "categoryId": "{{unpackAllSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — second item
+# @name unpackAllSetupItemB
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Unpack All Test — Item B {{$guid}}",
+  "categoryId": "{{unpackAllSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — a list with both items on it
+# @name unpackAllSetupList
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Unpack All Test — List {{$guid}}"
+}
+
+###
+
+POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{unpackAllSetupItemA.response.body.id}}"
+}
+
+###
+
+POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{unpackAllSetupItemB.response.body.id}}"
+}
+
+###
+
+### setup — pack both items first, so unpack-all has something to undo
+POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/pack-all
+Authorization: Bearer {{token}}
+
+###
+
+### ✅ 204 — unpack every item on the list at once (check GET /lists/:id
+#          afterward to confirm both items now show isPacked: false)
+POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/unpack-all
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — list does not exist
+POST {{host}}/lists/00000000-0000-0000-0000-000000000000/unpack-all
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid list id
+POST {{host}}/lists/not-a-uuid/unpack-all
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/unpack-all
+
+###
+
+### cleanup — archive this section's list
+DELETE {{host}}/lists/{{unpackAllSetupList.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's items
+DELETE {{host}}/items/{{unpackAllSetupItemA.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+DELETE {{host}}/items/{{unpackAllSetupItemB.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's category
+DELETE {{host}}/categories/{{unpackAllSetupCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
 #  Cleanup
 # ══════════════════════════════════════════
 #
