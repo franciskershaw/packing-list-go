@@ -19,7 +19,7 @@
 # since categoryId would resolve to an error body instead of an id).
 
 @host  = http://localhost:8080
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM3MDAzMjQsImlhdCI6MTc4MzY5OTQyNH0.K0hIHMdqPJjNdRYxJpYNl6rAoJ8M97HQ--_zOlP0-Nw
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM3MTA0MTAsImlhdCI6MTc4MzcwOTUxMH0.k3P7Us9hxr6ZATDsdLI8WfHoZtSJZwMySb1A_69GxvE
 
 
 # ══════════════════════════════════════════
@@ -604,6 +604,40 @@ Content-Type: application/json
 
 ###
 
+### ✅ 200 — isPacked only (PACK-013)
+PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "isPacked": true
+}
+
+###
+
+### ✅ 200 — isPacked explicit false is distinguishable from omission (PACK-013)
+PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "isPacked": false
+}
+
+###
+
+### ✅ 200 — quantity + isPacked combined (PACK-013)
+PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "quantity": 6,
+  "isPacked": true
+}
+
+###
+
 ### cleanup — archive this section's list (its own, unlike the shared
 #            Cleanup section below — nothing else depends on it)
 DELETE {{host}}/lists/{{patchItemSetupList.response.body.id}}
@@ -910,6 +944,129 @@ Authorization: Bearer {{token}}
 
 ### cleanup — delete this section's category
 DELETE {{host}}/categories/{{bulkSetupCategory.response.body.id}}
+Authorization: Bearer {{token}}
+
+
+# ══════════════════════════════════════════
+#  POST /lists/:id/pack-all
+# ══════════════════════════════════════════
+#
+#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
+#  setup and cleanup below), no earlier sections needed.
+
+### setup — a category with two items
+# @name packAllSetupCategory
+POST {{host}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pack All Test — Category {{$guid}}"
+}
+
+###
+
+### setup — first item
+# @name packAllSetupItemA
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pack All Test — Item A {{$guid}}",
+  "categoryId": "{{packAllSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — second item
+# @name packAllSetupItemB
+POST {{host}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pack All Test — Item B {{$guid}}",
+  "categoryId": "{{packAllSetupCategory.response.body.id}}"
+}
+
+###
+
+### setup — a list with both items on it, neither packed yet
+# @name packAllSetupList
+POST {{host}}/lists
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pack All Test — List {{$guid}}"
+}
+
+###
+
+POST {{host}}/lists/{{packAllSetupList.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{packAllSetupItemA.response.body.id}}"
+}
+
+###
+
+POST {{host}}/lists/{{packAllSetupList.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "itemId": "{{packAllSetupItemB.response.body.id}}"
+}
+
+###
+
+### ✅ 204 — pack every item on the list at once (check GET /lists/:id
+#          afterward to confirm both items now show isPacked: true)
+POST {{host}}/lists/{{packAllSetupList.response.body.id}}/pack-all
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 404 — list does not exist
+POST {{host}}/lists/00000000-0000-0000-0000-000000000000/pack-all
+Authorization: Bearer {{token}}
+
+###
+
+### ❌ 400 — invalid list id
+POST {{host}}/lists/not-a-uuid/pack-all
+Authorization: Bearer {{token}}
+
+###
+
+### 🔒 401 — no token
+POST {{host}}/lists/{{packAllSetupList.response.body.id}}/pack-all
+
+###
+
+### cleanup — archive this section's list
+DELETE {{host}}/lists/{{packAllSetupList.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's items
+DELETE {{host}}/items/{{packAllSetupItemA.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+DELETE {{host}}/items/{{packAllSetupItemB.response.body.id}}
+Authorization: Bearer {{token}}
+
+###
+
+### cleanup — delete this section's category
+DELETE {{host}}/categories/{{packAllSetupCategory.response.body.id}}
 Authorization: Bearer {{token}}
 
 
