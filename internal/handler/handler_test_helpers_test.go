@@ -3,6 +3,7 @@ package handler_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,7 +29,7 @@ func jsonBody(t *testing.T, v any) *bytes.Buffer {
 // through r, and returns the recorded response. Collapses the
 // NewRequest+headers+NewRecorder+ServeHTTP block every handler test would
 // otherwise repeat verbatim.
-func doRequest(t *testing.T, r *gin.Engine, method, path string, body *bytes.Buffer, authHeader string) *httptest.ResponseRecorder {
+func doRequest(t *testing.T, r *gin.Engine, method, path string, body io.Reader, authHeader string) *httptest.ResponseRecorder {
 	t.Helper()
 	var req *http.Request
 	if body != nil {

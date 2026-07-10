@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -121,10 +120,7 @@ func TestList_HappyPath(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/categories", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/categories", nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -143,10 +139,7 @@ func TestList_EmptyResult(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/categories", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/categories", nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "[]", w.Body.String())
@@ -158,9 +151,7 @@ func TestList_Unauthorized(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/categories", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/categories", nil, "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -176,11 +167,7 @@ func TestCreate_Valid(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "My Category"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "My Category"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
@@ -196,11 +183,7 @@ func TestCreate_MissingName(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]any{}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]any{}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -216,11 +199,7 @@ func TestCreate_MalformedJSON(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", strings.NewReader(`{"name":`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", strings.NewReader(`{"name":`), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
@@ -235,11 +214,7 @@ func TestCreate_EmptyName(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": ""}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": ""}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -251,11 +226,7 @@ func TestCreate_NameTooLong(t *testing.T) {
 
 	longName := strings.Repeat("a", 101)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": longName}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": longName}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -267,11 +238,7 @@ func TestCreate_DuplicateName(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "Existing"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "Existing"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -292,11 +259,7 @@ func TestCreate_SystemCategoryNameAllowed(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "Toiletries"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "Toiletries"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	repo.AssertExpectations(t)
@@ -307,10 +270,7 @@ func TestCreate_Unauthorized(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "Test"}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/categories", jsonBody(t, map[string]string{"name": "Test"}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -335,11 +295,7 @@ func TestUpdate_Valid(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var body map[string]any
@@ -362,11 +318,7 @@ func TestUpdate_OtherUsersCategory(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -379,11 +331,7 @@ func TestUpdate_SystemCategory(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -396,11 +344,7 @@ func TestUpdate_NotFound(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -417,11 +361,7 @@ func TestUpdate_DuplicateName(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "Taken Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "Taken Name"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -441,11 +381,7 @@ func TestUpdate_SameNameIsOK(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "My Category"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "My Category"}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -456,11 +392,7 @@ func TestUpdate_InvalidName(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": ""}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": ""}), testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -470,10 +402,7 @@ func TestUpdate_Unauthorized(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/categories/"+testCategoryID, jsonBody(t, map[string]string{"name": "New Name"}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -490,10 +419,7 @@ func TestDelete_Valid(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/categories/"+testCategoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/categories/"+testCategoryID, nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	repo.AssertExpectations(t)
@@ -508,10 +434,7 @@ func TestDelete_HasItems(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/categories/"+testCategoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/categories/"+testCategoryID, nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -531,10 +454,7 @@ func TestDelete_OtherUsersCategory(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/categories/"+testCategoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/categories/"+testCategoryID, nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -547,10 +467,7 @@ func TestDelete_SystemCategory(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/categories/"+testCategoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/categories/"+testCategoryID, nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -563,10 +480,7 @@ func TestDelete_NotFound(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/categories/"+testCategoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/categories/"+testCategoryID, nil, testutil.AuthHeader(t, "test@example.com", testCategoryUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -577,9 +491,7 @@ func TestDelete_Unauthorized(t *testing.T) {
 	h := handler.NewCategoryHandler(repo)
 	r := newCategoryTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/categories/"+testCategoryID, nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/categories/"+testCategoryID, nil, "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }

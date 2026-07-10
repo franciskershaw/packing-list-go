@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -117,11 +116,7 @@ func TestTemplateItemAdd_Valid(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "quantity": 3}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "quantity": 3}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var body map[string]any
@@ -144,11 +139,7 @@ func TestTemplateItemAdd_DefaultQuantity(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	repo.AssertExpectations(t)
@@ -167,11 +158,7 @@ func TestTemplateItemAdd_SystemItemAccessible(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	repo.AssertExpectations(t)
@@ -191,11 +178,7 @@ func TestTemplateItemAdd_WithNotes(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "notes": notes}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "notes": notes}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	repo.AssertExpectations(t)
@@ -209,11 +192,7 @@ func TestTemplateItemAdd_MissingItemID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -226,11 +205,7 @@ func TestTemplateItemAdd_InvalidItemID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": "not-a-uuid"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": "not-a-uuid"}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -244,11 +219,7 @@ func TestTemplateItemAdd_InaccessibleItem(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	repo.AssertExpectations(t)
@@ -264,11 +235,7 @@ func TestTemplateItemAdd_ItemDoesNotExist(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -282,11 +249,7 @@ func TestTemplateItemAdd_QuantityTooLow(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "quantity": 0}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "quantity": 0}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -300,11 +263,7 @@ func TestTemplateItemAdd_QuantityTooHigh(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "quantity": 1000}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "quantity": 1000}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -319,11 +278,7 @@ func TestTemplateItemAdd_NotesTooLong(t *testing.T) {
 	r := newTemplateTestRouter(repo, itemRepo)
 
 	longNotes := strings.Repeat("a", 201)
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "notes": longNotes}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID, "notes": longNotes}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -338,11 +293,7 @@ func TestTemplateItemAdd_Duplicate(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -355,11 +306,7 @@ func TestTemplateItemAdd_TemplateNotFound(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -373,11 +320,7 @@ func TestTemplateItemAdd_OtherUsersTemplate(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -388,11 +331,7 @@ func TestTemplateItemAdd_InvalidTemplateID(t *testing.T) {
 	itemRepo := &MockItemRepository{}
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/not-a-uuid/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/not-a-uuid/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -402,10 +341,7 @@ func TestTemplateItemAdd_Unauthorized(t *testing.T) {
 	itemRepo := &MockItemRepository{}
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items", jsonBody(t, map[string]any{"itemId": testTemplateItemItemID}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -424,11 +360,7 @@ func TestTemplateItemUpdate_QuantityOnly(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 5}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 5}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -447,11 +379,7 @@ func TestTemplateItemUpdate_NotesOnly(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"notes": newNotes}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"notes": newNotes}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -465,11 +393,7 @@ func TestTemplateItemUpdate_NeitherFieldProvided(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -483,11 +407,7 @@ func TestTemplateItemUpdate_QuantityOutOfRange(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 1000}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 1000}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -502,11 +422,7 @@ func TestTemplateItemUpdate_NotesTooLong(t *testing.T) {
 	r := newTemplateTestRouter(repo, itemRepo)
 
 	longNotes := strings.Repeat("a", 201)
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"notes": longNotes}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"notes": longNotes}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -518,11 +434,7 @@ func TestTemplateItemUpdate_TemplateNotFound(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 2}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 2}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -537,11 +449,7 @@ func TestTemplateItemUpdate_ItemNotOnTemplate(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 2}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 2}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -555,11 +463,7 @@ func TestTemplateItemUpdate_InvalidItemID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/not-a-uuid", jsonBody(t, map[string]any{"quantity": 2}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/not-a-uuid", jsonBody(t, map[string]any{"quantity": 2}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -569,10 +473,7 @@ func TestTemplateItemUpdate_Unauthorized(t *testing.T) {
 	itemRepo := &MockItemRepository{}
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 2}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, jsonBody(t, map[string]any{"quantity": 2}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -589,10 +490,7 @@ func TestTemplateItemRemove_Valid(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil, testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	repo.AssertExpectations(t)
@@ -605,10 +503,7 @@ func TestTemplateItemRemove_TemplateNotFound(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil, testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -623,10 +518,7 @@ func TestTemplateItemRemove_ItemNotOnTemplate(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil, testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -640,10 +532,7 @@ func TestTemplateItemRemove_InvalidItemID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID+"/items/not-a-uuid", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/templates/"+testTemplateID+"/items/not-a-uuid", nil, testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -653,9 +542,7 @@ func TestTemplateItemRemove_Unauthorized(t *testing.T) {
 	itemRepo := &MockItemRepository{}
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/templates/"+testTemplateID+"/items/"+testTemplateItemItemID, nil, "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -678,11 +565,7 @@ func TestTemplateItemBulkAdd_SomeSkipped(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var body []map[string]any
@@ -708,11 +591,7 @@ func TestTemplateItemBulkAdd_NoneSkipped(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var body []map[string]any
@@ -733,11 +612,7 @@ func TestTemplateItemBulkAdd_EmptyCategory(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "[]", w.Body.String())
@@ -752,11 +627,7 @@ func TestTemplateItemBulkAdd_MissingCategoryID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -769,11 +640,7 @@ func TestTemplateItemBulkAdd_InvalidCategoryID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": "not-a-uuid"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": "not-a-uuid"}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -787,11 +654,7 @@ func TestTemplateItemBulkAdd_InaccessibleCategoryID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	repo.AssertExpectations(t)
@@ -805,11 +668,7 @@ func TestTemplateItemBulkAdd_TemplateNotFound(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -820,10 +679,7 @@ func TestTemplateItemBulkAdd_Unauthorized(t *testing.T) {
 	itemRepo := &MockItemRepository{}
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	req := httptest.NewRequest(http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }

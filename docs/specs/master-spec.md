@@ -234,7 +234,9 @@ real, implementation-ready handoff doc.)*
     shared `doRequest` helper (already used by every packing-list test
     file) instead of the repeated `httptest.NewRequest`+headers+
     `ServeHTTP` block.
-  - **Status: not started.** See `docs/handoffs/epic-6-findings.md` item 10.
+  - **Status: handoff doc ready, implementation not started.** See
+    `docs/handoffs/PACK-019.md` (real handoff) and
+    `docs/handoffs/epic-6-findings.md` item 10 (source finding).
 - **PACK-020** — `requests/*.http` structural rethink.
   - Now unblocked — every feature ticket touching `.http` files (Epics
     1-5) is done. Needs its own `grill-me`: decide whether one file can

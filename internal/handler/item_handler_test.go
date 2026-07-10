@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -134,10 +133,7 @@ func TestItemsList_NoFilters(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items", nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var body []map[string]any
@@ -156,10 +152,7 @@ func TestItemsList_FilterByCategory(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items?category_id="+categoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items?category_id="+categoryID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -174,10 +167,7 @@ func TestItemsList_FilterBySearch(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items?search=sham", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items?search=sham", nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -194,10 +184,7 @@ func TestItemsList_BothFilters(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items?category_id="+categoryID+"&search=sham", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items?category_id="+categoryID+"&search=sham", nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -208,10 +195,7 @@ func TestItemsList_InvalidCategoryUUID(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items?category_id=not-a-uuid", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items?category_id=not-a-uuid", nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -223,10 +207,7 @@ func TestItemsList_InaccessibleCategory(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items?category_id="+otherCategoryID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items?category_id="+otherCategoryID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	repo.AssertExpectations(t)
@@ -239,10 +220,7 @@ func TestItemsList_EmptyResult(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items", nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items", nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "[]", w.Body.String())
@@ -254,9 +232,7 @@ func TestItemsList_Unauthorized(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/items", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodGet, "/items", nil, "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -273,11 +249,7 @@ func TestItemsCreate_Valid(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Dry Shampoo", "categoryId": testItemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Dry Shampoo", "categoryId": testItemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	var body map[string]any
@@ -292,11 +264,7 @@ func TestItemsCreate_MissingName(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"categoryId": testItemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"categoryId": testItemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -306,11 +274,7 @@ func TestItemsCreate_EmptyName(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "", "categoryId": testItemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "", "categoryId": testItemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -321,11 +285,7 @@ func TestItemsCreate_NameTooLong(t *testing.T) {
 	r := newItemTestRouter(h)
 
 	longName := strings.Repeat("a", 101)
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": longName, "categoryId": testItemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": longName, "categoryId": testItemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -335,11 +295,7 @@ func TestItemsCreate_MissingCategoryID(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test Item"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test Item"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -349,11 +305,7 @@ func TestItemsCreate_InvalidCategoryUUID(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test Item", "categoryId": "not-a-uuid"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test Item", "categoryId": "not-a-uuid"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -365,11 +317,7 @@ func TestItemsCreate_InaccessibleCategory(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test Item", "categoryId": otherCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test Item", "categoryId": otherCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	repo.AssertExpectations(t)
@@ -383,11 +331,7 @@ func TestItemsCreate_DuplicateName(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Existing", "categoryId": testItemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Existing", "categoryId": testItemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -403,11 +347,7 @@ func TestItemsCreate_SameNameDifferentCategory(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Dry Shampoo", "categoryId": otherCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Dry Shampoo", "categoryId": otherCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	repo.AssertExpectations(t)
@@ -421,11 +361,7 @@ func TestItemsCreate_DuplicateSystemItemSameCategory(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Toothbrush", "categoryId": testSystemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Toothbrush", "categoryId": testSystemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -436,10 +372,7 @@ func TestItemsCreate_Unauthorized(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test", "categoryId": testItemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPost, "/items", jsonBody(t, map[string]string{"name": "Test", "categoryId": testItemCategoryID}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -459,11 +392,7 @@ func TestItemsUpdate_NameOnly(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var body map[string]any
@@ -486,11 +415,7 @@ func TestItemsUpdate_CategoryOnly(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"categoryId": testSystemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"categoryId": testSystemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -513,11 +438,7 @@ func TestItemsUpdate_BothFields(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name", "categoryId": testSystemCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name", "categoryId": testSystemCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	repo.AssertExpectations(t)
@@ -528,11 +449,7 @@ func TestItemsUpdate_NoFieldsProvided(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]any{}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]any{}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -546,11 +463,7 @@ func TestItemsUpdate_NotOwned(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -563,11 +476,7 @@ func TestItemsUpdate_SystemItem(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -580,11 +489,7 @@ func TestItemsUpdate_NotFound(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -595,11 +500,7 @@ func TestItemsUpdate_InvalidName(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": ""}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": ""}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -609,11 +510,7 @@ func TestItemsUpdate_InvalidCategoryUUID(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"categoryId": "not-a-uuid"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"categoryId": "not-a-uuid"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -627,11 +524,7 @@ func TestItemsUpdate_InaccessibleCategory(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"categoryId": otherCategoryID}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"categoryId": otherCategoryID}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	repo.AssertExpectations(t)
@@ -647,11 +540,7 @@ func TestItemsUpdate_DuplicateName(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "Taken Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "Taken Name"}), testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -662,10 +551,7 @@ func TestItemsUpdate_Unauthorized(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodPatch, "/items/"+testItemID, jsonBody(t, map[string]string{"name": "New Name"}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -682,10 +568,7 @@ func TestItemsDelete_Valid(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/items/"+testItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/items/"+testItemID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	repo.AssertExpectations(t)
@@ -700,10 +583,7 @@ func TestItemsDelete_InUse(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/items/"+testItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/items/"+testItemID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	repo.AssertExpectations(t)
@@ -718,10 +598,7 @@ func TestItemsDelete_NotOwned(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/items/"+testItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/items/"+testItemID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -734,10 +611,7 @@ func TestItemsDelete_SystemItem(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/items/"+testItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/items/"+testItemID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -750,10 +624,7 @@ func TestItemsDelete_NotFound(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/items/"+testItemID, nil)
-	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testItemUserID))
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/items/"+testItemID, nil, testutil.AuthHeader(t, "test@example.com", testItemUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
@@ -764,9 +635,7 @@ func TestItemsDelete_Unauthorized(t *testing.T) {
 	h := handler.NewItemHandler(repo)
 	r := newItemTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/items/"+testItemID, nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := doRequest(t, r, http.MethodDelete, "/items/"+testItemID, nil, "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
