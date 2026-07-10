@@ -163,7 +163,10 @@ Status reflects the state of the code as of 2026-07-07.
   - `PATCH /lists/:id/items/:itemId` — update quantity/notes/sort order
   - `DELETE /lists/:id/items/:itemId` — remove
   - `POST /lists/:id/items/bulk` — add every item from a category
-  - **Status: not started.**
+  - **Status: Done.** `docs/handoffs/PACK-012.md` — mirrors PACK-009's
+    template-item endpoints; `sort_order` is now populated (PATCH-only)
+    and `GET /lists/:id` (PACK-011) orders by it, NULLS LAST, falling back
+    to alphabetical.
 - **PACK-013** — Packing/ticking items.
   - `PATCH /lists/:id/items/:itemId` — accepts `is_packed: true/false`
   - `POST /lists/:id/pack-all` — mark every item packed

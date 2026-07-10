@@ -87,3 +87,28 @@ project kickoff.
   drafting each AC's `.http` section alongside its own implementation,
   with an explicit manual-check gate per commit, instead of writing the
   whole file upfront and only running it once at the end.
+
+## 2026-07-10 — PACK-012 — Item management on packing lists shipped; one self-caught test bug
+
+- Repo layer and 3 of 4 handler ACs (Add/Remove/BulkAdd) matched the
+  handoff doc on the first pass. One real bug: a tests-first test for
+  `UpdateItem` assumed body-validation-before-ownership, copied from
+  PACK-011's own list-level `Update` rather than the actual named
+  precedent (`TemplateHandler.UpdateItem`, ownership-first) — caught
+  mid-implementation, not by review, and fixed by correcting the test.
+- **Pattern**: when a test is written to mirror a named precedent, verify
+  the exact call order against that precedent's current source at write
+  time — not memory, not a similar-looking neighbor — and cite it in the
+  test. Codified globally (step 4).
+- **Pattern**: each planned test should trace to a specific acceptance
+  criterion, or say explicitly that it guards a documented decision rather
+  than covering new behavior (e.g. the `SucceedsOnArchivedList` tests this
+  ticket, which are mock-identical to their plain-success siblings).
+  Codified globally (step 3 handoff docs, and folded into the periodic
+  tech-debt pass).
+- `.http` sections are now self-contained (own fixtures, own cleanup) with
+  an explicit "new in this commit" marker, so a single AC can be spot-
+  checked without re-running everything above it. Applied from the second
+  AC onward; the first section and all of PACK-010/011's stay as-is —
+  full `.http` file structure is its own tech-debt item (PACK-014 #12),
+  deliberately deferred until every feature ticket is done.

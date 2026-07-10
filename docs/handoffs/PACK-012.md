@@ -203,3 +203,7 @@ Key decisions from the interview:
   `POST .../items/bulk` sections, each drafted alongside its own handler's
   implementation with an explicit manual-check gate per commit — per the
   PACK-011 retro convention, not all upfront.
+
+## Close-out
+
+Completed 2026-07-10. Retro entry in LESSONS.md.
