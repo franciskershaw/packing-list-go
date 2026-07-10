@@ -171,7 +171,9 @@ Status reflects the state of the code as of 2026-07-07.
   - `PATCH /lists/:id/items/:itemId` — accepts `is_packed: true/false`
   - `POST /lists/:id/pack-all` — mark every item packed
   - `POST /lists/:id/unpack-all` — reset every item to unpacked
-  - **Status: not started.**
+  - **Status: Done.** `docs/handoffs/PACK-013.md` — `pack-all`/`unpack-all`
+    return 204 (no body); `isPacked` is `*bool` on the existing PATCH
+    endpoint so explicit `false` is distinguishable from omission.
 
 ### Epic 6: Codebase Health & Hardening
 

@@ -122,3 +122,7 @@ Key decisions from the interview:
   `POST /lists/:id/pack-all` / `POST /lists/:id/unpack-all` sections, each
   drafted alongside its own handler implementation with an explicit
   manual-check gate per commit.
+
+## Close-out
+
+Completed 2026-07-10. Retro entry in LESSONS.md.

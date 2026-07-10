@@ -112,3 +112,21 @@ project kickoff.
   AC onward; the first section and all of PACK-010/011's stay as-is —
   full `.http` file structure is its own tech-debt item (PACK-014 #12),
   deliberately deferred until every feature ticket is done.
+
+## 2026-07-10 — PACK-013 — Packing/ticking shipped; smooth ticket, one new stub-phase judgment call
+
+- No rework — repo layer and both handler ACs (`PackAll`/`UnpackAll`) went
+  green first try. Mechanical ripple from extending `UpdatePackingListItem`'s
+  signature (adding `isPacked`) was handled cleanly, likely because
+  PACK-012 had just been through the same class of change.
+- This ticket extended an already-implemented method rather than stubbing a
+  brand-new one — the existing "stubs return an error/wrong status, never
+  panic" rule assumed brand-new methods. Judgment call made in-session:
+  leave the real persistence unimplemented in the repo (the genuine stub),
+  but do the forced mechanical handler-side passthrough immediately, since
+  Go's type system requires every call site to supply the new argument
+  regardless and that wiring isn't business logic. Not promoted to a rule
+  this time — noted here in case the pattern recurs.
+- `.http`: first ticket to extend an *existing* self-contained section
+  (inserting new cases before its own cleanup) rather than only ever
+  creating fresh ones.
