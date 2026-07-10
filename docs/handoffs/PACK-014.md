@@ -184,6 +184,31 @@ fire-alarm list.
     name no longer reflects all of its callers. Rename to something
     generic (e.g. `validateItemNotes`) and update both call sites.
 
+12. **`requests/*.http` files need a structural review, not just a tweak —
+    deliberately deferred until every feature ticket is done.** Found
+    during PACK-012 (2026-07-10): each `.http` file's later sections
+    reference `@name`-captured variables from its own Setup/earlier
+    sections (e.g. `{{createListWithEventDate.response.body.id}}`), which
+    is fine for "run the whole file top-to-bottom once" but makes it
+    awkward to isolate and re-run just the section for a single commit —
+    you end up re-running everything above it just to repopulate captured
+    IDs, even though nothing above changed. Going forward (starting with
+    PACK-012's remaining ACs), new sections are self-contained — their own
+    throwaway fixtures, no reliance on earlier sections — with an explicit
+    marker pointing at what's new for a given commit. The existing
+    sections predating this (all of PACK-010/011's, plus PACK-012's
+    `POST /lists/:id/items`) were deliberately left as-is rather than
+    retrofitted mid-ticket. This item is the reminder to go back once
+    every ticket that touches `requests/*.http` is done, and rethink the
+    files properly with the full picture visible — including whether one
+    file can serve both "quick per-commit spot check" and "full manual
+    regression pass" well at once, or whether those are different enough
+    needs that they warrant different structures (e.g. splitting
+    self-contained smoke-test sections from a comprehensive regression
+    pass, or reconsidering the `.http`-per-resource convention itself).
+    Not a one-line fix — flagged specifically so it isn't rushed or
+    bundled into an unrelated ticket.
+
 ### Explicitly reviewed and dismissed (not worth doing, recorded so it isn't re-litigated)
 
 - Redundant `userIDFromCtx` guard at the top of every handler, even though
@@ -206,7 +231,9 @@ fire-alarm list.
 
 Run `/grill-me` against this doc. Likely questions for that session:
 whether items 1-2 (security) ship as their own small ticket separate from
-3-11 (architecture/cleanup); whether item 3 (config threading) is worth
+3-12 (architecture/cleanup); whether item 3 (config threading) is worth
 doing now or deferred until more of the app exists to make the DI payoff
 clearer; whether items 6-11 are worth a dedicated ticket or should ride
-along with whatever ticket touches those files next.
+along with whatever ticket touches those files next; item 12 specifically
+should not be scheduled until every feature ticket touching
+`requests/*.http` is done, per its own note.
