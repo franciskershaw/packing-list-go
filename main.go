@@ -69,7 +69,7 @@ func main() {
 	itemHandler := handler.NewItemHandler(itemRepo)
 	templateRepo := repository.NewTemplateRepository(db.DB)
 	templateHandler := handler.NewTemplateHandler(templateRepo, itemRepo)
-	packingListHandler := handler.NewPackingListHandler(repository.NewPackingListRepository(db.DB), templateRepo)
+	packingListHandler := handler.NewPackingListHandler(repository.NewPackingListRepository(db.DB), templateRepo, itemRepo)
 	authed := server.Group("/")
 	authed.Use(middleware.AuthMiddleware())
 	{
@@ -98,6 +98,10 @@ func main() {
 		authed.GET("/lists/:id", packingListHandler.GetByID)
 		authed.PATCH("/lists/:id", packingListHandler.Update)
 		authed.DELETE("/lists/:id", packingListHandler.Delete)
+		authed.POST("/lists/:id/items", packingListHandler.AddItem)
+		authed.PATCH("/lists/:id/items/:itemId", packingListHandler.UpdateItem)
+		authed.DELETE("/lists/:id/items/:itemId", packingListHandler.RemoveItem)
+		authed.POST("/lists/:id/items/bulk", packingListHandler.BulkAddItems)
 	}
 
 	if err := server.Run(":" + cfg.Port); err != nil {

@@ -74,10 +74,44 @@ func (m *MockPackingListRepository) ArchivePackingList(ctx context.Context, id s
 	return args.Error(0)
 }
 
+func (m *MockPackingListRepository) AddPackingListItem(ctx context.Context, listID, itemID string, quantity int, notes *string) (*models.PackingListItem, error) {
+	args := m.Called(ctx, listID, itemID, quantity, notes)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.PackingListItem), args.Error(1)
+}
+
+func (m *MockPackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int) (*models.PackingListItem, error) {
+	args := m.Called(ctx, listID, itemID, quantity, notes, sortOrder)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.PackingListItem), args.Error(1)
+}
+
+func (m *MockPackingListRepository) RemovePackingListItem(ctx context.Context, listID, itemID string) error {
+	args := m.Called(ctx, listID, itemID)
+	return args.Error(0)
+}
+
+func (m *MockPackingListRepository) PackingListItemExists(ctx context.Context, listID, itemID string) (bool, error) {
+	args := m.Called(ctx, listID, itemID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockPackingListRepository) GetPackingListItems(ctx context.Context, listID string) ([]models.PackingListItem, error) {
+	args := m.Called(ctx, listID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.PackingListItem), args.Error(1)
+}
+
 // --- Helpers ---
 
-func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo handler.TemplateLookupRepository) *gin.Engine {
-	h := handler.NewPackingListHandler(repo, templateRepo)
+func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo handler.TemplateLookupRepository, itemRepo handler.ItemLookupRepository) *gin.Engine {
+	h := handler.NewPackingListHandler(repo, templateRepo, itemRepo)
 	r := gin.New()
 	authed := r.Group("/")
 	authed.Use(middleware.AuthMiddleware())
@@ -86,6 +120,10 @@ func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo h
 	authed.GET("/lists/:id", h.GetByID)
 	authed.PATCH("/lists/:id", h.Update)
 	authed.DELETE("/lists/:id", h.Delete)
+	authed.POST("/lists/:id/items", h.AddItem)
+	authed.PATCH("/lists/:id/items/:itemId", h.UpdateItem)
+	authed.DELETE("/lists/:id/items/:itemId", h.RemoveItem)
+	authed.POST("/lists/:id/items/bulk", h.BulkAddItems)
 	return r
 }
 
@@ -130,7 +168,7 @@ func TestPackingListCreate_Valid(t *testing.T) {
 	created := packingListResult(nil)
 	repo.On("CreatePackingList", mock.Anything, testPackingListUserID, "My List", (*string)(nil), (*string)(nil)).Return(created, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -156,7 +194,7 @@ func TestPackingListCreate_WithEventDate(t *testing.T) {
 	created.EventDate = &eventDate
 	repo.On("CreatePackingList", mock.Anything, testPackingListUserID, "My List", &eventDate, (*string)(nil)).Return(created, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List", "eventDate": eventDate}))
 	req.Header.Set("Content-Type", "application/json")
@@ -184,7 +222,7 @@ func TestPackingListCreate_WithTemplateId(t *testing.T) {
 	templateRepo.On("GetTemplateByID", mock.Anything, testPackingListTemplateID).Return(packingListOwnedTemplate(), nil)
 	repo.On("CreatePackingList", mock.Anything, testPackingListUserID, "My List", (*string)(nil), &testPackingListTemplateIDCopy).Return(created, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List", "templateId": testPackingListTemplateID}))
 	req.Header.Set("Content-Type", "application/json")
@@ -205,7 +243,7 @@ func TestPackingListCreate_WithTemplateId(t *testing.T) {
 func TestPackingListCreate_MissingName(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{}))
 	req.Header.Set("Content-Type", "application/json")
@@ -219,7 +257,7 @@ func TestPackingListCreate_MissingName(t *testing.T) {
 func TestPackingListCreate_EmptyName(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": ""}))
 	req.Header.Set("Content-Type", "application/json")
@@ -233,7 +271,7 @@ func TestPackingListCreate_EmptyName(t *testing.T) {
 func TestPackingListCreate_NameTooLong(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	longName := strings.Repeat("a", 101)
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": longName}))
@@ -248,7 +286,7 @@ func TestPackingListCreate_NameTooLong(t *testing.T) {
 func TestPackingListCreate_InvalidEventDateFormat(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List", "eventDate": "08-01-2026"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -262,7 +300,7 @@ func TestPackingListCreate_InvalidEventDateFormat(t *testing.T) {
 func TestPackingListCreate_InvalidTemplateIdUUID(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List", "templateId": "not-a-uuid"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -278,7 +316,7 @@ func TestPackingListCreate_TemplateNotFound(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	templateRepo.On("GetTemplateByID", mock.Anything, testPackingListTemplateID).Return(nil, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List", "templateId": testPackingListTemplateID}))
 	req.Header.Set("Content-Type", "application/json")
@@ -301,7 +339,7 @@ func TestPackingListCreate_TemplateNotOwned(t *testing.T) {
 	}
 	templateRepo.On("GetTemplateByID", mock.Anything, testPackingListTemplateID).Return(notMine, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List", "templateId": testPackingListTemplateID}))
 	req.Header.Set("Content-Type", "application/json")
@@ -316,7 +354,7 @@ func TestPackingListCreate_TemplateNotOwned(t *testing.T) {
 func TestPackingListCreate_Unauthorized(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPost, "/lists", jsonBody(t, map[string]any{"name": "My List"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -334,7 +372,7 @@ func TestPackingListList_Active(t *testing.T) {
 	lists := []models.PackingList{{ID: uuid.New(), Name: "Active List", UserID: uuid.MustParse(testPackingListUserID), Items: []models.PackingListItem{}}}
 	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, false).Return(lists, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -357,7 +395,7 @@ func TestPackingListList_ArchivedTrue(t *testing.T) {
 	lists := []models.PackingList{{ID: uuid.New(), Name: "Archived List", UserID: uuid.MustParse(testPackingListUserID), Items: []models.PackingListItem{}}}
 	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, true).Return(lists, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists?archived=true", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -373,7 +411,7 @@ func TestPackingListList_ArchivedGarbageFallsBackToActive(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, false).Return([]models.PackingList{}, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists?archived=banana", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -387,7 +425,7 @@ func TestPackingListList_ArchivedGarbageFallsBackToActive(t *testing.T) {
 func TestPackingListList_Unauthorized(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
 	w := httptest.NewRecorder()
@@ -409,7 +447,7 @@ func TestPackingListGetByID_Owned(t *testing.T) {
 	}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, categories), nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -438,7 +476,7 @@ func TestPackingListGetByID_NotOwned(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -454,7 +492,7 @@ func TestPackingListGetByID_NotFound(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -468,7 +506,7 @@ func TestPackingListGetByID_NotFound(t *testing.T) {
 func TestPackingListGetByID_InvalidID(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists/not-a-uuid", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -482,7 +520,7 @@ func TestPackingListGetByID_InvalidID(t *testing.T) {
 func TestPackingListGetByID_Unauthorized(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodGet, "/lists/"+testPackingListID, nil)
 	w := httptest.NewRecorder()
@@ -503,7 +541,7 @@ func TestPackingListUpdate_NameOnly(t *testing.T) {
 	updated.Name = newName
 	repo.On("UpdatePackingList", mock.Anything, testPackingListID, &newName, (*string)(nil)).Return(updated, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": newName}))
 	req.Header.Set("Content-Type", "application/json")
@@ -527,7 +565,7 @@ func TestPackingListUpdate_EventDateOnly(t *testing.T) {
 	updated.EventDate = &eventDate
 	repo.On("UpdatePackingList", mock.Anything, testPackingListID, (*string)(nil), &eventDate).Return(updated, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"eventDate": eventDate}))
 	req.Header.Set("Content-Type", "application/json")
@@ -553,7 +591,7 @@ func TestPackingListUpdate_Both(t *testing.T) {
 	updated.EventDate = &eventDate
 	repo.On("UpdatePackingList", mock.Anything, testPackingListID, &newName, &eventDate).Return(updated, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": newName, "eventDate": eventDate}))
 	req.Header.Set("Content-Type", "application/json")
@@ -568,7 +606,7 @@ func TestPackingListUpdate_Both(t *testing.T) {
 func TestPackingListUpdate_MissingBoth(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{}))
 	req.Header.Set("Content-Type", "application/json")
@@ -583,7 +621,7 @@ func TestPackingListUpdate_MissingBoth(t *testing.T) {
 func TestPackingListUpdate_EmptyName(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": ""}))
 	req.Header.Set("Content-Type", "application/json")
@@ -598,7 +636,7 @@ func TestPackingListUpdate_EmptyName(t *testing.T) {
 func TestPackingListUpdate_InvalidEventDateFormat(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"eventDate": "08-01-2026"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -615,7 +653,7 @@ func TestPackingListUpdate_NotOwned(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -632,7 +670,7 @@ func TestPackingListUpdate_NotFound(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -647,7 +685,7 @@ func TestPackingListUpdate_NotFound(t *testing.T) {
 func TestPackingListUpdate_InvalidID(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/not-a-uuid", jsonBody(t, map[string]any{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -662,7 +700,7 @@ func TestPackingListUpdate_InvalidID(t *testing.T) {
 func TestPackingListUpdate_Unauthorized(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": "New Name"}))
 	req.Header.Set("Content-Type", "application/json")
@@ -686,7 +724,7 @@ func TestPackingListUpdate_SucceedsOnArchivedList(t *testing.T) {
 	updated.Name = newName
 	repo.On("UpdatePackingList", mock.Anything, testPackingListID, &newName, (*string)(nil)).Return(updated, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodPatch, "/lists/"+testPackingListID, jsonBody(t, map[string]any{"name": newName}))
 	req.Header.Set("Content-Type", "application/json")
@@ -706,7 +744,7 @@ func TestPackingListDelete_Success(t *testing.T) {
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
 	repo.On("ArchivePackingList", mock.Anything, testPackingListID).Return(nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -722,7 +760,7 @@ func TestPackingListDelete_NotOwned(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -738,7 +776,7 @@ func TestPackingListDelete_NotFound(t *testing.T) {
 	templateRepo := &MockTemplateRepository{}
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -752,7 +790,7 @@ func TestPackingListDelete_NotFound(t *testing.T) {
 func TestPackingListDelete_InvalidID(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/lists/not-a-uuid", nil)
 	req.Header.Set("Authorization", testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
@@ -766,7 +804,7 @@ func TestPackingListDelete_InvalidID(t *testing.T) {
 func TestPackingListDelete_Unauthorized(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)
 	w := httptest.NewRecorder()
@@ -785,7 +823,7 @@ func TestPackingListDelete_IdempotentOnAlreadyArchived(t *testing.T) {
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil).Twice()
 	repo.On("ArchivePackingList", mock.Anything, testPackingListID).Return(nil).Twice()
 
-	r := newPackingListTestRouter(repo, templateRepo)
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
 
 	for i := 0; i < 2; i++ {
 		req := httptest.NewRequest(http.MethodDelete, "/lists/"+testPackingListID, nil)

@@ -23,6 +23,7 @@ type PackingListItem struct {
 	Quantity   int       `json:"quantity"`
 	Notes      *string   `json:"notes"`
 	IsPacked   bool      `json:"isPacked"`
+	SortOrder  *int      `json:"sortOrder"`
 }
 
 // PackingListDetail is the GET /lists/:id (and PATCH /lists/:id) response
@@ -49,9 +50,10 @@ type PackingListCategory struct {
 // PackingListCategory. No categoryId — it would just repeat the parent
 // category's own id back to the client.
 type PackingListDetailItem struct {
-	ItemID   uuid.UUID `json:"itemId"`
-	Name     string    `json:"name"`
-	Quantity int       `json:"quantity"`
-	Notes    *string   `json:"notes"`
-	IsPacked bool      `json:"isPacked"`
+	ItemID    uuid.UUID `json:"itemId"`
+	Name      string    `json:"name"`
+	Quantity  int       `json:"quantity"`
+	Notes     *string   `json:"notes"`
+	IsPacked  bool      `json:"isPacked"`
+	SortOrder *int      `json:"sortOrder"`
 }

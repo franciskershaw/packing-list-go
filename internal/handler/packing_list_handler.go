@@ -16,6 +16,11 @@ type PackingListRepository interface {
 	GetPackingListByID(ctx context.Context, id string) (*models.PackingListDetail, error)
 	UpdatePackingList(ctx context.Context, id string, name *string, eventDate *string) (*models.PackingListDetail, error)
 	ArchivePackingList(ctx context.Context, id string) error
+	AddPackingListItem(ctx context.Context, listID, itemID string, quantity int, notes *string) (*models.PackingListItem, error)
+	UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int) (*models.PackingListItem, error)
+	RemovePackingListItem(ctx context.Context, listID, itemID string) error
+	PackingListItemExists(ctx context.Context, listID, itemID string) (bool, error)
+	GetPackingListItems(ctx context.Context, listID string) ([]models.PackingListItem, error)
 }
 
 // TemplateLookupRepository exposes just what PackingListHandler needs to
@@ -28,10 +33,11 @@ type TemplateLookupRepository interface {
 type PackingListHandler struct {
 	repo         PackingListRepository
 	templateRepo TemplateLookupRepository
+	itemRepo     ItemLookupRepository
 }
 
-func NewPackingListHandler(repo PackingListRepository, templateRepo TemplateLookupRepository) *PackingListHandler {
-	return &PackingListHandler{repo: repo, templateRepo: templateRepo}
+func NewPackingListHandler(repo PackingListRepository, templateRepo TemplateLookupRepository, itemRepo ItemLookupRepository) *PackingListHandler {
+	return &PackingListHandler{repo: repo, templateRepo: templateRepo, itemRepo: itemRepo}
 }
 
 func (h *PackingListHandler) Create(c *gin.Context) {

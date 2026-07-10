@@ -364,6 +364,56 @@ func TestGetPackingListByID_GroupedByCategoryAlphabetical(t *testing.T) {
 	assert.Equal(t, itemAlpha, found.Categories[0].Items[0].ItemID)
 }
 
+// setPackingListItemSortOrderDirect sets sort_order on a specific
+// packing_list_items row via raw SQL, bypassing UpdatePackingListItem (its
+// own PACK-012 tests cover it directly) — used purely to seed an ordering
+// fixture here.
+func setPackingListItemSortOrderDirect(t *testing.T, listID, itemID uuid.UUID, sortOrder int) {
+	t.Helper()
+	_, err := db.DB.Exec(`UPDATE packing_list_items SET sort_order = $1 WHERE list_id = $2 AND item_id = $3`, sortOrder, listID, itemID)
+	require.NoError(t, err)
+}
+
+func TestGetPackingListByID_OrdersBySortOrderThenAlphabetical(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+
+	itemBravo := createTestItemNamed(t, catID, "Bravo Item "+uuid.NewString())
+	itemAlpha := createTestItemNamed(t, catID, "Alpha Item "+uuid.NewString())
+	itemEcho := createTestItemNamed(t, catID, "Echo Item "+uuid.NewString())
+	itemZulu := createTestItemNamed(t, catID, "Zulu Item "+uuid.NewString())
+
+	tmplID := createTestTemplate(t)
+	for _, id := range []uuid.UUID{itemBravo, itemAlpha, itemEcho, itemZulu} {
+		_, err := templateRepo.AddTemplateItem(ctx, tmplID.String(), id.String(), 1, nil)
+		require.NoError(t, err)
+	}
+
+	tmplIDStr := tmplID.String()
+	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-sortorder-"+uuid.NewString(), nil, &tmplIDStr)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+
+	// itemBravo and itemAlpha get explicit sort_order; itemEcho/itemZulu
+	// stay NULL and must fall back to alphabetical among themselves.
+	setPackingListItemSortOrderDirect(t, created.ID, itemBravo, 1)
+	setPackingListItemSortOrderDirect(t, created.ID, itemAlpha, 2)
+
+	found, err := packingListRepo.GetPackingListByID(ctx, created.ID.String())
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	require.Len(t, found.Categories, 1)
+	items := found.Categories[0].Items
+	require.Len(t, items, 4)
+
+	gotOrder := make([]uuid.UUID, len(items))
+	for i, item := range items {
+		gotOrder[i] = item.ItemID
+	}
+	assert.Equal(t, []uuid.UUID{itemBravo, itemAlpha, itemEcho, itemZulu}, gotOrder,
+		"expected explicit sort_order first (ascending), then NULLs alphabetically by name")
+}
+
 func TestUpdatePackingList_NameOnly(t *testing.T) {
 	ctx := context.Background()
 
