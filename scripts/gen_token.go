@@ -1,6 +1,8 @@
 //go:build ignore
 
-// Generates a JWT access token for manual API testing against a local server.
+// Generates a JWT access token for manual API testing against a local server
+// and writes it into .env as DEV_TOKEN, so the requests/*.http files can
+// pick it up via {{$dotenv DEV_TOKEN}} without any manual copy-paste.
 //
 // Usage:
 //
@@ -15,6 +17,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/franciskershaw/packing-list-go/internal/auth"
@@ -83,5 +86,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(token)
+	if err := upsertEnvVar(".env", "DEV_TOKEN", token); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to write DEV_TOKEN to .env: %v\n", err)
+		fmt.Println(token)
+		return
+	}
+
+	fmt.Println("DEV_TOKEN written to .env")
+}
+
+// upsertEnvVar replaces the line "key=..." in the file at path with
+// "key=value", or appends it if no such line exists. Other lines are left
+// untouched.
+func upsertEnvVar(path, key, value string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	prefix := key + "="
+	found := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			lines[i] = prefix + value
+			found = true
+			break
+		}
+	}
+	if !found {
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			lines = append(lines[:len(lines)-1], prefix+value, "")
+		} else {
+			lines = append(lines, prefix+value)
+		}
+	}
+
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
 }
