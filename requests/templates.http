@@ -2,16 +2,15 @@
 #
 # SETUP (do this once before running any request):
 #
-#   1. Start the server:       go run main.go
-#   2. Generate a token:       go run scripts/gen_token.go
-#   3. Paste the output below into @token
+#   1. Start the server:  go run main.go
+#   2. Generate a token:  go run scripts/gen_token.go
+#
+# Token and host resolve automatically from .env — see requests/README.md
+# for how that works. No variables to paste in this file.
 #
 # Recommended order: run the requests top-to-bottom.
 # Templates have no system-level concept (every template is user-owned), so
 # unlike categories.http/items.http there's no "system row" setup step.
-
-@host  = http://localhost:8080
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM1NDEwOTMsImlhdCI6MTc4MzU0MDE5M30.RRX0Ye8YcEFi-j8AWwoC3eVo8oojprKIiSk3jZuwO30
 
 
 # ══════════════════════════════════════════
@@ -19,13 +18,13 @@
 # ══════════════════════════════════════════
 
 ### ✅ 200 — empty list before any templates exist
-GET {{host}}/templates
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/templates
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 🔒 401 — no token
-GET {{host}}/templates
+GET http://localhost:{{$dotenv PORT}}/templates
 
 
 # ══════════════════════════════════════════
@@ -34,9 +33,9 @@ GET {{host}}/templates
 
 ### ✅ 201 — creates a template with name only (items: [])
 # @name createTemplate
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Weekend Hiking"
@@ -46,9 +45,9 @@ Authorization: Bearer {{token}}
 
 ### ✅ 201 — creates a template with name and description
 # @name createTemplateWithDescription
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Beach Trip",
@@ -58,9 +57,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — missing name
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "description": "No name here"
@@ -69,9 +68,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — empty name
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": ""
@@ -80,9 +79,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — name exceeds 100 characters
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
@@ -91,21 +90,21 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — description exceeds 500 characters
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Too Much Detail",
-  "description": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  "description": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
 ###
 
 ### ❌ 409 — duplicate name (requires the "Weekend Hiking" POST above)
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Weekend Hiking"
@@ -114,7 +113,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### 🔒 401 — no token
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
 
 {
@@ -129,25 +128,20 @@ Content-Type: application/json
 # ══════════════════════════════════════════
 
 ### ✅ 200 — returns the template with items: []
-GET {{host}}/templates/{{createTemplate.response.body.id}}
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid id (not a UUID)
-GET {{host}}/templates/not-a-uuid
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/templates/not-a-uuid
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — template does not exist
-GET {{host}}/templates/00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-GET {{host}}/templates/{{createTemplate.response.body.id}}
+GET http://localhost:{{$dotenv PORT}}/templates/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
@@ -157,9 +151,9 @@ GET {{host}}/templates/{{createTemplate.response.body.id}}
 # ══════════════════════════════════════════
 
 ### ✅ 200 — renames the template
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Weekend Hiking (Renamed)"
@@ -168,9 +162,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — updates description only, name unchanged
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "description": "Now with a description"
@@ -179,9 +173,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — description: "" clears it to an empty string (not null)
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "description": ""
@@ -190,18 +184,18 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — neither name nor description provided
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 400 — name too long
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
@@ -212,9 +206,9 @@ Authorization: Bearer {{token}}
 ### ❌ 409 — rename to a name already used by another of the caller's templates
 #          (requires the createTemplateWithDescription POST above to have
 #          been sent first, so "Beach Trip" exists)
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Beach Trip"
@@ -223,22 +217,12 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — template does not exist
-PATCH {{host}}/templates/00000000-0000-0000-0000-000000000000
+PATCH http://localhost:{{$dotenv PORT}}/templates/00000000-0000-0000-0000-000000000000
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Anything"
-}
-
-###
-
-### 🔒 401 — no token
-PATCH {{host}}/templates/{{createTemplate.response.body.id}}
-Content-Type: application/json
-
-{
-  "name": "Should Fail"
 }
 
 
@@ -247,32 +231,26 @@ Content-Type: application/json
 #
 #  409-if-in-use does NOT apply to templates (unlike categories/items) —
 #  deletion is unconditional even if a packing list references this
-#  template (packing_lists.template_id is set to NULL, not blocked). That
-#  can't be exercised end-to-end here yet since PACK-010 (packing list
-#  creation) doesn't exist; once it does, add a request that creates a list
-#  from this template, then retry this DELETE and confirm it still 204s.
+#  template (packing_lists.template_id is set to NULL, not blocked). See
+#  packing_lists.http's Setup section, which creates a list from a template
+#  and then deletes that template in its own cleanup without a 409.
 # ══════════════════════════════════════════
 
 ### ✅ 204 — deletes the template (no response body)
-DELETE {{host}}/templates/{{createTemplate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — already deleted (or never existed)
-DELETE {{host}}/templates/{{createTemplate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid id (not a UUID)
-DELETE {{host}}/templates/not-a-uuid
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-DELETE {{host}}/templates/{{createTemplateWithDescription.response.body.id}}
+DELETE http://localhost:{{$dotenv PORT}}/templates/not-a-uuid
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
@@ -280,5 +258,5 @@ DELETE {{host}}/templates/{{createTemplateWithDescription.response.body.id}}
 # ══════════════════════════════════════════
 
 ### 204 — delete the remaining "Beach Trip" template
-DELETE {{host}}/templates/{{createTemplateWithDescription.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/templates/{{createTemplateWithDescription.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}

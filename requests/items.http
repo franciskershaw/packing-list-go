@@ -2,17 +2,16 @@
 #
 # SETUP (do this once before running any request):
 #
-#   1. Start the server:       go run main.go
-#   2. Generate a token:       go run scripts/gen_token.go
-#   3. Paste the output below into @token
+#   1. Start the server:  go run main.go
+#   2. Generate a token:  go run scripts/gen_token.go
+#
+# Token and host resolve automatically from .env — see requests/README.md
+# for how that works. No variables to paste in this file.
 #
 # Recommended order: run the requests top-to-bottom.
 # Items live under categories, so the first two POSTs create a "home" category
 # and a "target" category (used for the move-category tests) — send those
 # first, then everything else references their captured IDs.
-
-@host  = http://localhost:8080
-@token = 
 
 
 # ══════════════════════════════════════════
@@ -21,9 +20,9 @@
 
 ### create the category items will be created under
 # @name createHomeCategory
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Items Test — Home Category"
@@ -33,9 +32,9 @@ Authorization: Bearer {{token}}
 
 ### create a second category, used for the "move to another category" PATCH tests
 # @name createTargetCategory
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Items Test — Target Category"
@@ -47,43 +46,43 @@ Authorization: Bearer {{token}}
 # ══════════════════════════════════════════
 
 ### ✅ 200 — returns system + own items as a flat list
-GET {{host}}/items
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/items
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — filter by category_id
-GET {{host}}/items?category_id={{createHomeCategory.response.body.id}}
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/items?category_id={{createHomeCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — filter by search (case-insensitive partial match)
-GET {{host}}/items?search=test item
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/items?search=test item
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — both filters combined
-GET {{host}}/items?category_id={{createHomeCategory.response.body.id}}&search=test item
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/items?category_id={{createHomeCategory.response.body.id}}&search=test item
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid category_id (not a UUID)
-GET {{host}}/items?category_id=not-a-uuid
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/items?category_id=not-a-uuid
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — category_id does not exist / not accessible
-GET {{host}}/items?category_id=00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/items?category_id=00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 🔒 401 — no token
-GET {{host}}/items
+GET http://localhost:{{$dotenv PORT}}/items
 
 
 # ══════════════════════════════════════════
@@ -92,9 +91,9 @@ GET {{host}}/items
 
 ### ✅ 201 — creates a new user-owned item under the home category
 # @name createItem
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Test Item",
@@ -104,9 +103,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — missing name
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "categoryId": "{{createHomeCategory.response.body.id}}"
@@ -115,9 +114,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — empty name
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "",
@@ -127,9 +126,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — name exceeds 100 characters
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX",
@@ -139,9 +138,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — missing categoryId
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "No Category Item"
@@ -150,9 +149,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid categoryId (not a UUID)
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Bad Category Item",
@@ -162,9 +161,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — categoryId does not exist / not accessible
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Inaccessible Category Item",
@@ -174,9 +173,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 409 — duplicate name in the same category (requires the 201 above to have been sent first)
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Test Item",
@@ -187,9 +186,9 @@ Authorization: Bearer {{token}}
 
 ### ✅ 201 — same name is fine in a different category
 # @name createItemInTargetCategory
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Test Item",
@@ -201,9 +200,9 @@ Authorization: Bearer {{token}}
 ### ✅ 201 — creating a user item under a system category is allowed
 #          (requires seed data: psql $DATABASE_URL -f db/seeds/categories.sql)
 #          replace the categoryId below with a real system category ID from your DB
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Toothbrush Cover",
@@ -213,7 +212,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### 🔒 401 — no token
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
 
 {
@@ -230,9 +229,9 @@ Content-Type: application/json
 # ══════════════════════════════════════════
 
 ### ✅ 200 — renames the created item
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Renamed Test Item"
@@ -241,9 +240,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — moves the item to the target category
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "categoryId": "{{createTargetCategory.response.body.id}}"
@@ -252,9 +251,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — updates name and category together
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Renamed Again",
@@ -264,18 +263,18 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — no fields provided
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 400 — empty name
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": ""
@@ -284,9 +283,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — name too long
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
@@ -295,9 +294,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid categoryId (not a UUID)
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "categoryId": "not-a-uuid"
@@ -306,9 +305,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — categoryId does not exist / not accessible
-PATCH {{host}}/items/{{createItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "categoryId": "00000000-0000-0000-0000-000000000000"
@@ -318,9 +317,9 @@ Authorization: Bearer {{token}}
 
 ### ❌ 409 — duplicate name in the target category
 # @name createDuplicateCandidate
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Duplicate Candidate",
@@ -332,9 +331,9 @@ Authorization: Bearer {{token}}
 ### ❌ 409 — rename to a name already used by another item in the same category
 #          (requires the createDuplicateCandidate POST above to have been sent
 #          first in this session, so its id is resolved)
-PATCH {{host}}/items/{{createDuplicateCandidate.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/items/{{createDuplicateCandidate.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Renamed Again"
@@ -343,22 +342,12 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — item does not exist
-PATCH {{host}}/items/00000000-0000-0000-0000-000000000000
+PATCH http://localhost:{{$dotenv PORT}}/items/00000000-0000-0000-0000-000000000000
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Anything"
-}
-
-###
-
-### 🔒 401 — no token
-PATCH {{host}}/items/{{createItem.response.body.id}}
-Content-Type: application/json
-
-{
-  "name": "Should Fail"
 }
 
 
@@ -369,32 +358,27 @@ Content-Type: application/json
 #  to delete. After the 204 below the item is gone — subsequent PATCH/DELETE
 #  requests against the same ID will return 404.
 #
-#  409 (item in use on a template or active packing list) can't be exercised
-#  here yet — the template/packing-list endpoints aren't built. Once they
-#  exist, add a request that attaches the item to a template or an
-#  unarchived packing list, then retry this DELETE to see the 409.
+#  409 (item in use on a template or active packing list) isn't exercised
+#  here, or anywhere else in this suite — template_items.http and
+#  packing_lists.http both detach items before deleting them in their own
+#  cleanup specifically to avoid it. Not covered anywhere currently.
 # ══════════════════════════════════════════
 
 ### ✅ 204 — deletes the duplicate-candidate item (no response body)
-DELETE {{host}}/items/{{createDuplicateCandidate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/items/{{createDuplicateCandidate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — already deleted (or never existed)
-DELETE {{host}}/items/{{createDuplicateCandidate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/items/{{createDuplicateCandidate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — non-existent UUID
-DELETE {{host}}/items/00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-DELETE {{host}}/items/{{createItem.response.body.id}}
+DELETE http://localhost:{{$dotenv PORT}}/items/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
@@ -408,23 +392,23 @@ DELETE {{host}}/items/{{createItem.response.body.id}}
 # ══════════════════════════════════════════
 
 ### 204 — delete the item left in the home category
-DELETE {{host}}/items/{{createItem.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 204 — delete the item left in the target category
-DELETE {{host}}/items/{{createItemInTargetCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/items/{{createItemInTargetCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 204 — delete home category
-DELETE {{host}}/categories/{{createHomeCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/categories/{{createHomeCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 204 — delete target category
-DELETE {{host}}/categories/{{createTargetCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/categories/{{createTargetCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}

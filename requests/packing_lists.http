@@ -2,9 +2,11 @@
 #
 # SETUP (do this once before running any request):
 #
-#   1. Start the server:       go run main.go
-#   2. Generate a token:       go run scripts/gen_token.go
-#   3. Paste the output below into @token
+#   1. Start the server:  go run main.go
+#   2. Generate a token:  go run scripts/gen_token.go
+#
+# Token and host resolve automatically from .env — see requests/README.md
+# for how that works. No variables to paste in this file.
 #
 # Recommended order: run the requests top-to-bottom.
 # This file duplicates its own template + item + category setup (mirroring
@@ -12,25 +14,32 @@
 # .http files) — send the setup section first, then everything else
 # references the captured IDs.
 #
+# From "PATCH /lists/:id/items/:itemId" onward, sections chain off
+# createListWithEventDate and the two Setup items (createItem,
+# createItemTwo) rather than each spinning up their own fresh
+# category/item/list — one continuous story (attach → patch → remove →
+# bulk-add → pack-all → unpack-all) instead of five isolated fixtures.
+# Only the small amount of setup a section genuinely needs beyond what
+# already exists earlier in the file (e.g. attaching the second item) is
+# added inline.
+#
 # Setup names include {{$guid}} so re-running this file never collides with
 # a previous run's leftover template/category/item (both have a per-user
 # uniqueness check — a stale same-named row from an incomplete prior run
 # would 409 on creation, which then cascades into a 400 on the item create
 # since categoryId would resolve to an error body instead of an id).
 
-@host  = http://localhost:8080
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldi10ZXN0QGtpdHRlZC1hcGkuaW50ZXJuYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjE3ODM3MTA0MTAsImlhdCI6MTc4MzcwOTUxMH0.k3P7Us9hxr6ZATDsdLI8WfHoZtSJZwMySb1A_69GxvE
-
 
 # ══════════════════════════════════════════
-#  Setup — a template with one item attached, to seed a list from
+#  Setup — a template with one item attached, a second item for later
+#  sections, to seed a list from
 # ══════════════════════════════════════════
 
 ### create the template a list will be seeded from
 # @name createTemplate
-POST {{host}}/templates
+POST http://localhost:{{$dotenv PORT}}/templates
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Packing List Test — Template {{$guid}}"
@@ -38,11 +47,11 @@ Authorization: Bearer {{token}}
 
 ###
 
-### create the category the seed item lives in
+### create the category the seed items live in
 # @name createCategory
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Packing List Test — Category {{$guid}}"
@@ -52,9 +61,9 @@ Authorization: Bearer {{token}}
 
 ### create the seed item
 # @name createItem
-POST {{host}}/items
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Packing List Test — Item {{$guid}}",
@@ -63,10 +72,24 @@ Authorization: Bearer {{token}}
 
 ###
 
-### attach the item to the template
-POST {{host}}/templates/{{createTemplate.response.body.id}}/items
+### create a second item in the same category — used by the item-removal
+#  and bulk-add sections further down
+# @name createItemTwo
+POST http://localhost:{{$dotenv PORT}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "name": "Packing List Test — Item Two {{$guid}}",
+  "categoryId": "{{createCategory.response.body.id}}"
+}
+
+###
+
+### attach the first item to the template
+POST http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "itemId": "{{createItem.response.body.id}}",
@@ -81,9 +104,9 @@ Authorization: Bearer {{token}}
 
 ### ✅ 201 — name only, no eventDate/templateId — items: []
 # @name createListNameOnly
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Weekend Hiking"
@@ -93,9 +116,9 @@ Authorization: Bearer {{token}}
 
 ### ✅ 201 — name + eventDate
 # @name createListWithEventDate
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Beach Trip",
@@ -106,9 +129,9 @@ Authorization: Bearer {{token}}
 
 ### ✅ 201 — templateId seeds the list's items from the template
 # @name createListFromTemplate
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Seeded From Template",
@@ -118,9 +141,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — missing name
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "eventDate": "2026-08-01"
@@ -129,9 +152,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — empty name
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": ""
@@ -140,9 +163,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — name exceeds 100 characters
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
@@ -151,9 +174,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid eventDate format
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Bad Date List",
@@ -163,9 +186,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid templateId (not a UUID)
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Bad Template List",
@@ -175,9 +198,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — templateId does not exist / not owned by caller
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Missing Template List",
@@ -187,7 +210,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### 🔒 401 — no token
-POST {{host}}/lists
+POST http://localhost:{{$dotenv PORT}}/lists
 Content-Type: application/json
 
 {
@@ -201,25 +224,25 @@ Content-Type: application/json
 
 ### ✅ 200 — active lists: createListNameOnly, createListWithEventDate,
 #          createListFromTemplate, ordered most-recently-updated first
-GET {{host}}/lists
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — archived lists (empty until the DELETE section below archives one)
-GET {{host}}/lists?archived=true
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists?archived=true
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — garbage archived value behaves like the default (active-only)
-GET {{host}}/lists?archived=banana
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists?archived=banana
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 🔒 401 — no token
-GET {{host}}/lists
+GET http://localhost:{{$dotenv PORT}}/lists
 
 
 # ══════════════════════════════════════════
@@ -228,25 +251,20 @@ GET {{host}}/lists
 
 ### ✅ 200 — grouped by category: one category ("Packing List Test —
 #          Category") containing createItem, quantity 2, notes "pack spares"
-GET {{host}}/lists/{{createListFromTemplate.response.body.id}}
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists/{{createListFromTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid id
-GET {{host}}/lists/not-a-uuid
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists/not-a-uuid
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — does not exist
-GET {{host}}/lists/00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-GET {{host}}/lists/{{createListFromTemplate.response.body.id}}
+GET http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
@@ -254,9 +272,9 @@ GET {{host}}/lists/{{createListFromTemplate.response.body.id}}
 # ══════════════════════════════════════════
 
 ### ✅ 200 — rename only
-PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Weekend Hiking (renamed)"
@@ -265,9 +283,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — eventDate only
-PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "eventDate": "2026-09-01"
@@ -276,18 +294,18 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — neither name nor eventDate present
-PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 400 — invalid eventDate format
-PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "eventDate": "09-01-2026"
@@ -296,9 +314,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — does not exist
-PATCH {{host}}/lists/00000000-0000-0000-0000-000000000000
+PATCH http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Should Fail"
@@ -307,19 +325,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid id
-PATCH {{host}}/lists/not-a-uuid
+PATCH http://localhost:{{$dotenv PORT}}/lists/not-a-uuid
 Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Should Fail"
-}
-
-###
-
-### 🔒 401 — no token
-PATCH {{host}}/lists/{{createListNameOnly.response.body.id}}
-Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Should Fail"
@@ -331,43 +339,38 @@ Content-Type: application/json
 # ══════════════════════════════════════════
 
 ### ❌ 400 — invalid id
-DELETE {{host}}/lists/not-a-uuid
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/not-a-uuid
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — does not exist
-DELETE {{host}}/lists/00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-DELETE {{host}}/lists/{{createListNameOnly.response.body.id}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 204 — archive createListNameOnly (renamed above to "Weekend Hiking (renamed)")
-DELETE {{host}}/lists/{{createListNameOnly.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 204 — idempotent: archiving it again still succeeds, not an error
-DELETE {{host}}/lists/{{createListNameOnly.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — GET /lists?archived=true now includes it, GET /lists no longer does
-GET {{host}}/lists?archived=true
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists?archived=true
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 200 — GET /lists/:id still returns full detail for the archived list
-GET {{host}}/lists/{{createListNameOnly.response.body.id}}
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
@@ -375,10 +378,12 @@ Authorization: Bearer {{token}}
 # ══════════════════════════════════════════
 
 ### ✅ 201 — add createItem to createListWithEventDate; categoryId is
-#          derived from the item's own category, not caller-supplied
-POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+#          derived from the item's own category, not caller-supplied.
+#          This item stays on the list for the PATCH, bulk-add, pack-all
+#          and unpack-all sections below.
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "itemId": "{{createItem.response.body.id}}",
@@ -389,9 +394,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 409 — adding the same item to the same list again conflicts
-POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "itemId": "{{createItem.response.body.id}}"
@@ -400,18 +405,18 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — missing itemId
-POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 400 — invalid itemId (not a UUID)
-POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "itemId": "not-a-uuid"
@@ -420,9 +425,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — list does not exist
-POST {{host}}/lists/00000000-0000-0000-0000-000000000000/items
+POST http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "itemId": "{{createItem.response.body.id}}"
@@ -431,9 +436,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid list id
-POST {{host}}/lists/not-a-uuid/items
+POST http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "itemId": "{{createItem.response.body.id}}"
@@ -442,7 +447,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### 🔒 401 — no token
-POST {{host}}/lists/{{createListWithEventDate.response.body.id}}/items
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items
 Content-Type: application/json
 
 {
@@ -452,66 +457,15 @@ Content-Type: application/json
 
 # ══════════════════════════════════════════
 #  PATCH /lists/:id/items/:itemId
-# ══════════════════════════════════════════
 #
-#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
-#  setup and cleanup below), no earlier sections needed. Per the PACK-012
-#  retro, sections from here on don't reach back into Setup/earlier
-#  sections' captured variables.
-
-### setup — a category for this section's item
-# @name patchItemSetupCategory
-POST {{host}}/categories
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Patch Item Test — Category {{$guid}}"
-}
-
-###
-
-### setup — an item in that category
-# @name patchItemSetupItem
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Patch Item Test — Item {{$guid}}",
-  "categoryId": "{{patchItemSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — a list to attach it to
-# @name patchItemSetupList
-POST {{host}}/lists
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Patch Item Test — List {{$guid}}"
-}
-
-###
-
-### setup — attach the item to the list
-POST {{host}}/lists/{{patchItemSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{patchItemSetupItem.response.body.id}}",
-  "quantity": 1
-}
-
-###
+#  Continues to use createItem on createListWithEventDate, attached by the
+#  POST section above — no new fixtures needed.
+# ══════════════════════════════════════════
 
 ### ✅ 200 — quantity only
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "quantity": 5
@@ -520,9 +474,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — notes only
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "notes": "bring extra"
@@ -531,9 +485,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — sortOrder only, negative accepted
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "sortOrder": -2
@@ -542,18 +496,18 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — none of quantity/notes/sortOrder present
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 404 — item not on this list
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/00000000-0000-0000-0000-000000000000
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/00000000-0000-0000-0000-000000000000
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "quantity": 2
@@ -562,9 +516,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — list does not exist
-PATCH {{host}}/lists/00000000-0000-0000-0000-000000000000/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "quantity": 2
@@ -573,9 +527,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid itemId
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/not-a-uuid
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/not-a-uuid
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "quantity": 2
@@ -584,19 +538,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — invalid list id
-PATCH {{host}}/lists/not-a-uuid/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "quantity": 2
-}
-
-###
-
-### 🔒 401 — no token
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
-Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "quantity": 2
@@ -605,9 +549,9 @@ Content-Type: application/json
 ###
 
 ### ✅ 200 — isPacked only (PACK-013)
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "isPacked": true
@@ -616,9 +560,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — isPacked explicit false is distinguishable from omission (PACK-013)
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "isPacked": false
@@ -627,254 +571,115 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — quantity + isPacked combined (PACK-013)
-PATCH {{host}}/lists/{{patchItemSetupList.response.body.id}}/items/{{patchItemSetupItem.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItem.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "quantity": 6,
   "isPacked": true
 }
 
-###
-
-### cleanup — archive this section's list (its own, unlike the shared
-#            Cleanup section below — nothing else depends on it)
-DELETE {{host}}/lists/{{patchItemSetupList.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's item
-DELETE {{host}}/items/{{patchItemSetupItem.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's category
-DELETE {{host}}/categories/{{patchItemSetupCategory.response.body.id}}
-Authorization: Bearer {{token}}
-
 
 # ══════════════════════════════════════════
 #  DELETE /lists/:id/items/:itemId
-# ══════════════════════════════════════════
 #
-#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
-#  setup and cleanup below), no earlier sections needed.
+#  Attaches createItemTwo to createListWithEventDate first (small inline
+#  setup — everything else needed already exists), then removes it. This
+#  also puts createItemTwo back into "not yet on the list" state for the
+#  bulk-add section below.
+# ══════════════════════════════════════════
 
-### setup — a category for this section's item
-# @name removeItemSetupCategory
-POST {{host}}/categories
+### setup — attach the second item so there's something to remove
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "name": "Remove Item Test — Category {{$guid}}"
-}
-
-###
-
-### setup — an item in that category
-# @name removeItemSetupItem
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Remove Item Test — Item {{$guid}}",
-  "categoryId": "{{removeItemSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — a list to attach it to
-# @name removeItemSetupList
-POST {{host}}/lists
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Remove Item Test — List {{$guid}}"
-}
-
-###
-
-### setup — attach the item to the list
-POST {{host}}/lists/{{removeItemSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{removeItemSetupItem.response.body.id}}"
+  "itemId": "{{createItemTwo.response.body.id}}"
 }
 
 ###
 
 ### ❌ 404 — item not on this list (wrong item id)
-DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — list does not exist
-DELETE {{host}}/lists/00000000-0000-0000-0000-000000000000/items/{{removeItemSetupItem.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid itemId
-DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/not-a-uuid
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/not-a-uuid
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid list id
-DELETE {{host}}/lists/not-a-uuid/items/{{removeItemSetupItem.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/{{removeItemSetupItem.response.body.id}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 204 — remove the item from the list
-DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/{{removeItemSetupItem.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — removing it again (already gone) now correctly 404s
-DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}/items/{{removeItemSetupItem.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — archive this section's list
-DELETE {{host}}/lists/{{removeItemSetupList.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's item (already off the list, so this
-#            works even though ItemIsInUse would otherwise block it)
-DELETE {{host}}/items/{{removeItemSetupItem.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's category
-DELETE {{host}}/categories/{{removeItemSetupCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
 #  POST /lists/:id/items/bulk
-# ══════════════════════════════════════════
 #
-#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
-#  setup and cleanup below), no earlier sections needed.
+#  createItem is already on createListWithEventDate (attached above and
+#  never removed) — bulk-add should skip it. createItemTwo was just
+#  removed by the DELETE section above — bulk-add should pick it back up.
+# ══════════════════════════════════════════
 
-### setup — a category with two items, to exercise "some already on the list"
-# @name bulkSetupCategory
-POST {{host}}/categories
+### ✅ 201 — bulk-add the category: createItem skipped (already on the
+#          list), only createItemTwo appears in the response
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "name": "Bulk Add Test — Category {{$guid}}"
-}
-
-###
-
-### setup — first item (added to the list directly, below — bulk-add
-#          should skip it)
-# @name bulkSetupItemA
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Bulk Add Test — Item A {{$guid}}",
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — second item (not yet on the list — bulk-add should add it)
-# @name bulkSetupItemB
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Bulk Add Test — Item B {{$guid}}",
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — a list
-# @name bulkSetupList
-POST {{host}}/lists
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Bulk Add Test — List {{$guid}}"
-}
-
-###
-
-### setup — add item A directly, so it's already on the list before bulk-add runs
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{bulkSetupItemA.response.body.id}}"
-}
-
-###
-
-### ✅ 201 — bulk-add the category: item A skipped (already on the list),
-#          only item B appears in the response
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+  "categoryId": "{{createCategory.response.body.id}}"
 }
 
 ###
 
 ### ✅ 201 — running it again now returns [] (both items already on the list)
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+  "categoryId": "{{createCategory.response.body.id}}"
 }
 
 ###
 
 ### ❌ 400 — missing categoryId
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 400 — invalid categoryId (not a UUID)
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "categoryId": "not-a-uuid"
@@ -883,9 +688,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — categoryId does not exist / not accessible
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "categoryId": "00000000-0000-0000-0000-000000000000"
@@ -894,355 +699,126 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — list does not exist
-POST {{host}}/lists/00000000-0000-0000-0000-000000000000/items/bulk
+POST http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+  "categoryId": "{{createCategory.response.body.id}}"
 }
 
 ###
 
 ### ❌ 400 — invalid list id
-POST {{host}}/lists/not-a-uuid/items/bulk
+POST http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/items/bulk
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
+  "categoryId": "{{createCategory.response.body.id}}"
 }
-
-###
-
-### 🔒 401 — no token
-POST {{host}}/lists/{{bulkSetupList.response.body.id}}/items/bulk
-Content-Type: application/json
-
-{
-  "categoryId": "{{bulkSetupCategory.response.body.id}}"
-}
-
-###
-
-### cleanup — archive this section's list
-DELETE {{host}}/lists/{{bulkSetupList.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's items
-DELETE {{host}}/items/{{bulkSetupItemA.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-DELETE {{host}}/items/{{bulkSetupItemB.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's category
-DELETE {{host}}/categories/{{bulkSetupCategory.response.body.id}}
-Authorization: Bearer {{token}}
 
 
 # ══════════════════════════════════════════
 #  POST /lists/:id/pack-all
-# ══════════════════════════════════════════
 #
-#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
-#  setup and cleanup below), no earlier sections needed.
+#  Both createItem and createItemTwo are on createListWithEventDate after
+#  the bulk-add section above. createItem may already be isPacked: true
+#  from the PATCH section earlier — pack-all still 204s and is the thing
+#  to check via GET /lists/:id afterward to confirm both items show
+#  isPacked: true.
+# ══════════════════════════════════════════
 
-### setup — a category with two items
-# @name packAllSetupCategory
-POST {{host}}/categories
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Pack All Test — Category {{$guid}}"
-}
-
-###
-
-### setup — first item
-# @name packAllSetupItemA
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Pack All Test — Item A {{$guid}}",
-  "categoryId": "{{packAllSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — second item
-# @name packAllSetupItemB
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Pack All Test — Item B {{$guid}}",
-  "categoryId": "{{packAllSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — a list with both items on it, neither packed yet
-# @name packAllSetupList
-POST {{host}}/lists
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Pack All Test — List {{$guid}}"
-}
-
-###
-
-POST {{host}}/lists/{{packAllSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{packAllSetupItemA.response.body.id}}"
-}
-
-###
-
-POST {{host}}/lists/{{packAllSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{packAllSetupItemB.response.body.id}}"
-}
-
-###
-
-### ✅ 204 — pack every item on the list at once (check GET /lists/:id
-#          afterward to confirm both items now show isPacked: true)
-POST {{host}}/lists/{{packAllSetupList.response.body.id}}/pack-all
-Authorization: Bearer {{token}}
+### ✅ 204 — pack every item on the list at once
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/pack-all
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — list does not exist
-POST {{host}}/lists/00000000-0000-0000-0000-000000000000/pack-all
-Authorization: Bearer {{token}}
+POST http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/pack-all
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid list id
-POST {{host}}/lists/not-a-uuid/pack-all
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-POST {{host}}/lists/{{packAllSetupList.response.body.id}}/pack-all
-
-###
-
-### cleanup — archive this section's list
-DELETE {{host}}/lists/{{packAllSetupList.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's items
-DELETE {{host}}/items/{{packAllSetupItemA.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-DELETE {{host}}/items/{{packAllSetupItemB.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's category
-DELETE {{host}}/categories/{{packAllSetupCategory.response.body.id}}
-Authorization: Bearer {{token}}
+POST http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/pack-all
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
 #  POST /lists/:id/unpack-all
 # ══════════════════════════════════════════
-#
-#  👉 NEW IN THIS COMMIT — self-contained: run just this section (its own
-#  setup and cleanup below), no earlier sections needed.
 
-### setup — a category with two items
-# @name unpackAllSetupCategory
-POST {{host}}/categories
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Unpack All Test — Category {{$guid}}"
-}
-
-###
-
-### setup — first item
-# @name unpackAllSetupItemA
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Unpack All Test — Item A {{$guid}}",
-  "categoryId": "{{unpackAllSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — second item
-# @name unpackAllSetupItemB
-POST {{host}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Unpack All Test — Item B {{$guid}}",
-  "categoryId": "{{unpackAllSetupCategory.response.body.id}}"
-}
-
-###
-
-### setup — a list with both items on it
-# @name unpackAllSetupList
-POST {{host}}/lists
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "name": "Unpack All Test — List {{$guid}}"
-}
-
-###
-
-POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{unpackAllSetupItemA.response.body.id}}"
-}
-
-###
-
-POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/items
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "itemId": "{{unpackAllSetupItemB.response.body.id}}"
-}
-
-###
-
-### setup — pack both items first, so unpack-all has something to undo
-POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/pack-all
-Authorization: Bearer {{token}}
-
-###
-
-### ✅ 204 — unpack every item on the list at once (check GET /lists/:id
-#          afterward to confirm both items now show isPacked: false)
-POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/unpack-all
-Authorization: Bearer {{token}}
+### ✅ 204 — unpack every item on the list at once (undoes pack-all above —
+#          check GET /lists/:id afterward to confirm both items now show
+#          isPacked: false)
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}/unpack-all
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — list does not exist
-POST {{host}}/lists/00000000-0000-0000-0000-000000000000/unpack-all
-Authorization: Bearer {{token}}
+POST http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/unpack-all
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 400 — invalid list id
-POST {{host}}/lists/not-a-uuid/unpack-all
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-POST {{host}}/lists/{{unpackAllSetupList.response.body.id}}/unpack-all
-
-###
-
-### cleanup — archive this section's list
-DELETE {{host}}/lists/{{unpackAllSetupList.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's items
-DELETE {{host}}/items/{{unpackAllSetupItemA.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-DELETE {{host}}/items/{{unpackAllSetupItemB.response.body.id}}
-Authorization: Bearer {{token}}
-
-###
-
-### cleanup — delete this section's category
-DELETE {{host}}/categories/{{unpackAllSetupCategory.response.body.id}}
-Authorization: Bearer {{token}}
+POST http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/unpack-all
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
 #  Cleanup
 # ══════════════════════════════════════════
 #
-#  DELETE /lists/:id now exists (PACK-011), but it only archives — there's no
-#  hard-delete, so lists created in this file stay in the DB (archived).
-#  Archive the remaining two lists here so ItemIsInUse (which only counts
+#  DELETE /lists/:id only archives — there's no hard-delete, so lists
+#  created in this file stay in the DB (archived). Archive the two
+#  remaining active lists here so ItemIsInUse (which only counts
 #  non-archived list references) stops blocking the item/category deletes
 #  below — both createListFromTemplate (seeded from the template) and
-#  createListWithEventDate (PACK-012's POST /lists/:id/items section added
-#  createItem to it directly) now reference createItem via
-#  packing_list_items, so both need archiving before it's free to delete.
+#  createListWithEventDate (carries createItem and createItemTwo from the
+#  sections above) reference items via packing_list_items, so both need
+#  archiving before it's free to delete them.
 
 ### 204 — archive createListWithEventDate
-DELETE {{host}}/lists/{{createListWithEventDate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListWithEventDate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 204 — archive createListFromTemplate
-DELETE {{host}}/lists/{{createListFromTemplate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/lists/{{createListFromTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 204 — remove the item from the template (clears the template_items reference)
-DELETE {{host}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 204 — delete the template
-DELETE {{host}}/templates/{{createTemplate.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
-### ✅ 204 — item can now be deleted: its only list reference (createListFromTemplate)
-#          is archived, and archived lists don't count for ItemIsInUse
-DELETE {{host}}/items/{{createItem.response.body.id}}
-Authorization: Bearer {{token}}
+### ✅ 204 — item can now be deleted: its list references are all archived,
+#          and archived lists don't count for ItemIsInUse
+DELETE http://localhost:{{$dotenv PORT}}/items/{{createItem.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ✅ 204 — same for the second item
+DELETE http://localhost:{{$dotenv PORT}}/items/{{createItemTwo.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ✅ 204 — category can now be deleted too
-DELETE {{host}}/categories/{{createCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}

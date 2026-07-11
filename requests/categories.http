@@ -2,16 +2,15 @@
 #
 # SETUP (do this once before running any request):
 #
-#   1. Start the server:       go run main.go
-#   2. Generate a token:       go run scripts/gen_token.go
-#   3. Paste the output below into @token
+#   1. Start the server:  go run main.go
+#   2. Generate a token:  go run scripts/gen_token.go
+#
+# Token and host resolve automatically from .env — see requests/README.md
+# for how that works. No variables to paste in this file.
 #
 # Recommended order: run the requests top-to-bottom.
 # The PATCH and DELETE "happy path" requests use the response captured from
 # the POST that creates a category — send that POST first.
-
-@host  = http://localhost:8080
-@token =
 
 
 # ══════════════════════════════════════════
@@ -19,13 +18,13 @@
 # ══════════════════════════════════════════
 
 ### ✅ 200 — returns system + own categories as a flat list
-GET {{host}}/categories
-Authorization: Bearer {{token}}
+GET http://localhost:{{$dotenv PORT}}/categories
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### 🔒 401 — no token
-GET {{host}}/categories
+GET http://localhost:{{$dotenv PORT}}/categories
 
 
 # ══════════════════════════════════════════
@@ -34,9 +33,9 @@ GET {{host}}/categories
 
 ### ✅ 201 — creates a new user-owned category
 # @name createCategory
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "My Test Category"
@@ -45,18 +44,18 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — missing name field
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {}
 
 ###
 
 ### ❌ 400 — empty name
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": ""
@@ -65,9 +64,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — name exceeds 100 characters
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
@@ -76,9 +75,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 409 — duplicate name (requires the 201 above to have been sent first)
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "My Test Category"
@@ -88,9 +87,9 @@ Authorization: Bearer {{token}}
 
 ### ✅ 201 — same name as a system category is allowed for user-owned categories
 #          (requires seed data: go psql $DATABASE_URL -f db/seeds/categories.sql)
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Toiletries"
@@ -99,7 +98,7 @@ Authorization: Bearer {{token}}
 ###
 
 ### 🔒 401 — no token
-POST {{host}}/categories
+POST http://localhost:{{$dotenv PORT}}/categories
 Content-Type: application/json
 
 {
@@ -115,9 +114,9 @@ Content-Type: application/json
 # ══════════════════════════════════════════
 
 ### ✅ 200 — renames the created category
-PATCH {{host}}/categories/{{createCategory.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "My Renamed Category"
@@ -126,9 +125,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ✅ 200 — same name as current is a no-op (allowed)
-PATCH {{host}}/categories/{{createCategory.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "My Renamed Category"
@@ -137,9 +136,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — empty name
-PATCH {{host}}/categories/{{createCategory.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": ""
@@ -148,9 +147,9 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 400 — name too long
-PATCH {{host}}/categories/{{createCategory.response.body.id}}
+PATCH http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"
@@ -159,22 +158,12 @@ Authorization: Bearer {{token}}
 ###
 
 ### ❌ 404 — category does not exist
-PATCH {{host}}/categories/00000000-0000-0000-0000-000000000000
+PATCH http://localhost:{{$dotenv PORT}}/categories/00000000-0000-0000-0000-000000000000
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
   "name": "Anything"
-}
-
-###
-
-### 🔒 401 — no token
-PATCH {{host}}/categories/{{createCategory.response.body.id}}
-Content-Type: application/json
-
-{
-  "name": "Should Fail"
 }
 
 
@@ -183,26 +172,22 @@ Content-Type: application/json
 #
 #  Send the createCategory POST first to get an ID to delete.
 #  After the 204 below the category is gone — subsequent PATCH/DELETE
-#  requests against the same ID will return 404.
+#  requests against the same ID will return 404. This is the file's own
+#  cleanup: nothing is left behind, no separate cleanup section needed.
 # ══════════════════════════════════════════
 
 ### ✅ 204 — deletes the created category (no response body)
-DELETE {{host}}/categories/{{createCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — already deleted (or never existed)
-DELETE {{host}}/categories/{{createCategory.response.body.id}}
-Authorization: Bearer {{token}}
+DELETE http://localhost:{{$dotenv PORT}}/categories/{{createCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ###
 
 ### ❌ 404 — non-existent UUID
-DELETE {{host}}/categories/00000000-0000-0000-0000-000000000000
-Authorization: Bearer {{token}}
-
-###
-
-### 🔒 401 — no token
-DELETE {{host}}/categories/{{createCategory.response.body.id}}
+DELETE http://localhost:{{$dotenv PORT}}/categories/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
