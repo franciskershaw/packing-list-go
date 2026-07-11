@@ -169,3 +169,7 @@ Manual verification *is* the deliverable, checked per commit boundary:
   - Each file's cleanup block leaves the DB in the same state it started
     in (no leftover rows) — re-running a file twice in a row should behave
     the same both times.
+
+## Close-out
+
+Completed 2026-07-11. Retro entry in LESSONS.md.

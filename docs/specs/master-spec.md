@@ -237,10 +237,15 @@ real, implementation-ready handoff doc.)*
   - **Status: Done.** See `docs/handoffs/PACK-019.md` (real handoff) and
     `docs/handoffs/epic-6-findings.md` item 10 (source finding).
 - **PACK-020** — `requests/*.http` structural rethink.
-  - Now unblocked — every feature ticket touching `.http` files (Epics
-    1-5) is done. Needs its own `grill-me`: decide whether one file can
-    serve both "quick per-commit spot check" and "full manual regression
-    pass," or whether those are different enough needs to warrant
-    splitting (e.g. separate smoke-test vs. regression files), and whether
-    the `.http`-per-resource convention itself should be reconsidered.
-  - **Status: not started.** See `docs/handoffs/epic-6-findings.md` item 12.
+  - Rebuilt the 5-file manual `.http` suite into one consistent,
+    low-duplication convention: token/host resolve automatically via
+    `.env`/`$dotenv` (no more manual paste), `packing_lists.http` reverted
+    from PACK-012's self-contained-sections style back to chained shared
+    setup (per-commit isolation is no longer the priority now that every
+    feature ticket is done), redundant per-endpoint 401 checks trimmed,
+    cleanup consolidated per file, and a new `requests/README.md`
+    documents the convention. No smoke-test split built; `auth.http`
+    stays out of scope (needs its own design for the browser-driven OAuth
+    flow).
+  - **Status: Done.** See `docs/handoffs/PACK-020.md` (real handoff) and
+    `docs/handoffs/epic-6-findings.md` item 12 (source finding).

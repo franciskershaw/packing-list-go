@@ -249,3 +249,26 @@ project kickoff.
   times), a scripted transformation + before/after test-name-list diffing
   per file is a fast, safe verification method — reuse it next time a
   ticket is "the same edit repeated N times."
+
+## 2026-07-11 — PACK-020 — requests/*.http overhaul shipped; deliberately reversed the PACK-012 convention
+
+- No rework — all 7 ACs matched the interview's design and passed manual
+  verification first pass. Scope got reframed mid-interview: item 12's
+  original "smoke vs. regression split" framing was dropped once it was
+  clear per-commit isolation isn't the priority now that every feature
+  ticket is done — that reframe drove most of the design.
+- **Pattern**: when a convention was adopted to solve a specific problem
+  (PACK-012's self-contained `.http` sections, for per-commit isolation)
+  and that problem stops applying, reversing the convention is fine — say
+  so explicitly in the handoff/retro rather than let it read as drift, so
+  the log keeps the "why" for both the adoption and the reversal.
+- Found live JWTs committed in git history (`templates.http`,
+  `template_items.http`) incidentally while reading files to plan the
+  rewrite — expired/dev-only, no remediation needed, but it's the exact
+  class of mistake the `@token`→`{{$dotenv}}` fix now prevents
+  structurally rather than just discourages.
+- Verified the structural rewrite by diffing request/method counts against
+  git history (`packing_lists.http`: 128→79) rather than only reading the
+  new file — same before/after-diff technique as PACK-019's mechanical
+  retrofit, now shown to generalize to a structural rewrite, not just a
+  repeated-edit retrofit.
