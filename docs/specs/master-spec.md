@@ -249,3 +249,96 @@ real, implementation-ready handoff doc.)*
     flow).
   - **Status: Done.** See `docs/handoffs/PACK-020.md` (real handoff) and
     `docs/handoffs/epic-6-findings.md` item 12 (source finding).
+
+### Epic 7: Production Readiness & Frontend Bridge
+
+*(Filed 2026-07-11 from an external LLM audit run at the close of Epic 6.
+Full detail for every item below lives in
+`docs/handoffs/audit-2026-07-11-findings.md`, kept as the shared reference
+archive rather than duplicated per ticket — each ticket's own future
+`grill-me` should read the numbered item(s) it references there, and
+verify the finding against current source, before writing that ticket's
+real handoff doc. PACK-029 and PACK-030 below were added later — same day,
+separate provenance — see their own entries; both are listed first despite
+the higher ticket numbers because they're priority pickups, not because
+the numbering implies an order.)*
+
+- **PACK-029** — Unarchive endpoint. **Priority — pick up before
+  PACK-021.**
+  - `PATCH /lists/:id/unarchive` (or fold `archived: false` into the
+    existing `PATCH /lists/:id`) sets `archived_at` back to `NULL`.
+    `DELETE /lists/:id` only sets `archived_at`; nothing currently
+    reverses it.
+  - Found 2026-07-11 during frontend prototyping (not the audit above) —
+    the prototype's archive toggle is designed as reversible (tap again
+    to restore), which the API can't currently support. Verified against
+    current source before filing: confirmed no PATCH/POST route or repo
+    method touches `archived_at` in the unarchive direction
+    (`internal/repository/packing_list.go`, `main.go` route list).
+  - **Status: not started.**
+- **PACK-030** — Session-restore / user-profile endpoint. **Priority —
+  pick up before PACK-021.**
+  - `GET /me` (or similar) returning the authenticated user's profile
+    (`id`, `email`, `name`, `avatarUrl`).
+  - Found 2026-07-11 during frontend prototyping (not the audit above) —
+    `POST /auth/refresh` returns only a new `accessToken`
+    (`internal/handler/auth_handler.go`), so a persistent-sign-in flow has
+    no way to restore name/avatar without a fresh OAuth login. Also fixes
+    a related gap found during verification: even the login response
+    (`GET /auth/google/callback`) never returns the avatar URL to the
+    client, despite it being captured and stored server-side
+    (`GetOrCreateUser`'s `avatarURL` param) — so this endpoint is the
+    only way to expose it at all, not just the refresh-time fix.
+  - **Status: not started.**
+
+- **PACK-021** — Server lifecycle hardening.
+  - `http.Server` timeouts (`ReadHeaderTimeout`/`ReadTimeout`/
+    `WriteTimeout`/`IdleTimeout`), graceful shutdown
+    (`signal.NotifyContext` + `Shutdown`), Gin release mode from
+    `cfg.Environment`.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    items 1-2 (source findings).
+- **PACK-022** — Request-level abuse protection.
+  - Rate limiting on `/auth/*`, request body size cap,
+    `server.SetTrustedProxies(nil)`.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    items 3-4 (source findings).
+- **PACK-023** — OAuth state store fix.
+  - Unbounded in-memory map on `/auth/google/login` — sweep expired
+    entries, or go stateless with a signed state cookie.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    item 5 (source finding).
+- **PACK-024** — CI pipeline + fail-loud DB tests.
+  - GitHub Actions running `gofmt`/`go vet`/`golangci-lint`/
+    `govulncheck`/`go test`; repository suite fails (not silently skips)
+    without `DATABASE_URL` unless an explicit opt-out flag is passed.
+    Likely multi-AC (CI secrets, DB access from CI) — a good real
+    exercise of `grill-me`'s new-pattern-vs-precedent question once
+    picked up.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    item 6 (source finding).
+- **PACK-025** — DB indexes migration.
+  - FK columns and `user_id` columns have no indexes beyond primary keys.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    item 7 (source finding).
+- **PACK-026** — OpenAPI spec.
+  - Generate from the existing handlers as the explicit frontend-contract
+    bridge artifact. No functional coupling to PACK-025 — may get pulled
+    forward ahead of it if frontend work starts first.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    item 8 (source finding).
+- **PACK-027** — Refresh token rotation with reuse detection.
+  - **Status: not started — deliberately deferred.** Pick up alongside
+    the future frontend auth-integration ticket, not standalone. See
+    `docs/handoffs/audit-2026-07-11-findings.md` item 9 (source finding).
+- **PACK-028** — Minor security/idiom cleanup.
+  - Bundles: `email_verified` check, refresh-flow UUID/subject
+    validation + JWT-secrets-distinct startup assertion,
+    ownership-in-WHERE-clause defense-in-depth, `context.Request.Context()`
+    propagation, ILIKE wildcard escaping, `gen_token.go` prod-DB guard,
+    `sslmode=require` check, non-transactional `BulkAddItems`, structured
+    logging (explicitly reopens an Epic-6 dismissal — see the findings
+    doc), `main()` extraction, naming stutter/inconsistency, `*string`
+    dates.
+  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
+    items 10-18 (source findings).

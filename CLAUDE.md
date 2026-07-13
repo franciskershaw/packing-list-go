@@ -79,10 +79,15 @@ API", "this service") instead.
 
 The global rule is to flag, not silently fix, anything outside a ticket's
 stated scope. In this project, that flag has a home: suggest adding it to
-**Epic 6 ("Codebase Health & Hardening")** in `docs/specs/master-spec.md`
-rather than just mentioning it and letting it evaporate once the
-conversation moves on. That epic exists specifically as the durable
-landing spot for security/architecture/consistency findings that surface
-mid-feature — currently drafted at `docs/handoffs/PACK-014.md`, not yet
-scoped via `grill-me`. This applies whether the finding comes from Claude's
-own review or a human/other-agent review shared in chat.
+**Epic 7 ("Production Readiness & Frontend Bridge")** in
+`docs/specs/master-spec.md` rather than just mentioning it and letting it
+evaporate once the conversation moves on. That epic is the durable landing
+spot for security/architecture/consistency findings that surface
+mid-feature — see `docs/handoffs/audit-2026-07-11-findings.md` for its
+current contents. This applies whether the finding comes from Claude's own
+review or a human/other-agent review shared in chat.
+
+(Epic 6, the previous landing spot, is fully Done as of PACK-020 — see
+`docs/handoffs/epic-6-findings.md` for its archive. When Epic 7 closes
+out, its own close-out should update this pointer to whatever epic
+becomes the new landing spot, the same way this update did.)
