@@ -100,3 +100,9 @@ the refresh-time fix.
   a one-line update noting `GET /me` is now covered, scoping the
   "auth.http doesn't exist" statement down to login/callback/refresh/
   logout only.
+
+## Close-out
+
+Completed 2026-07-14. Retro entry in LESSONS.md. Follow-up finding filed
+as PACK-031 (`avatar_url` NOT NULL constraint + repo-test regression
+guard) in `docs/specs/master-spec.md`.

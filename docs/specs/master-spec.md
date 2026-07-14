@@ -290,6 +290,35 @@ the numbering implies an order.)*
     client, despite it being captured and stored server-side
     (`GetOrCreateUser`'s `avatarURL` param) — so this endpoint is the
     only way to expose it at all, not just the refresh-time fix.
+  - **Status: Done.** See `docs/handoffs/PACK-030.md`. Surfaced a
+    follow-up finding, filed below as **PACK-031**.
+
+- **PACK-031** — `avatar_url` NOT NULL constraint.
+  - Found 2026-07-14 closing out PACK-030: `GET /me` 500'd against the
+    dev token because `scripts/gen_token.go`'s user upsert omitted
+    `avatar_url`, leaving it genuinely `NULL` — the column is nullable in
+    the schema (`db/migrations/000001_init_schema.up.sql`) but no
+    legitimate app code path ever leaves it unset (`GetOrCreateUser`'s
+    `avatarURL` param and `IDTokenClaims.AvatarURL`,
+    `internal/auth/google.go:27`, are both plain `string`, defaulting to
+    `""` not absence). `GetUserByID` scans the column directly into a
+    non-nullable Go `string`, so a genuine `NULL` fails the scan with a
+    real error, not a clean not-found.
+  - Recommended fix (see PACK-030 close-out retro,
+    `LESSONS.md`): migrate `avatar_url` to `NOT NULL DEFAULT ''`, so the
+    invariant every real code path already honors is enforced at the DB
+    layer — any future raw-SQL writer that forgets the column fails
+    loudly at `INSERT`, not silently in an unrelated downstream ticket.
+    Pair with a repo-test regression guard mirroring
+    `archivePackingListDirect`'s raw-SQL-fixture technique
+    (`internal/repository/packing_list_test.go:116`) — insert a user row
+    via raw SQL omitting `avatar_url` and assert `GetUserByID` handles it,
+    since the normal `GetOrCreateUser` fixture path can never produce a
+    `NULL` to test against. The dev-token seed fix itself
+    (`scripts/gen_token.go` now seeds and backfills a placeholder
+    `avatarUrl`) already shipped as part of PACK-030 — this ticket is the
+    schema-level and test-coverage follow-up, not a re-fix of the
+    immediate symptom.
   - **Status: not started.**
 
 - **PACK-021** — Server lifecycle hardening.

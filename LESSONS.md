@@ -287,3 +287,30 @@ project kickoff.
   caught it and answered with a clarifying question instead of picking
   either option. Not promoted to a pattern — one-off, not worth a
   standing rule.
+
+## 2026-07-14 — PACK-030 — Session-restore endpoint shipped; manual verification caught a real bug mocks couldn't
+
+- Design and implementation were clean first-pass (`Me` mirrors
+  `RefreshToken`'s `GetUserByID` handling exactly). But the `.http` manual
+  check hit a genuine `500`: `scripts/gen_token.go`'s dev-user upsert
+  never set `avatar_url`, leaving it truly `NULL`, and `GetUserByID`
+  scans that nullable column into a non-nullable Go `string` — a real
+  scan error, not a clean not-found. No automated test could have caught
+  this: every mocked fixture (`testUser()`) and every real app code path
+  (`GetOrCreateUser`'s `avatarURL` param, `IDTokenClaims.AvatarURL`) always
+  supplies a string, never a true absence — only a raw-SQL insert that
+  forgets the column can produce it, which is exactly what `gen_token.go`
+  did.
+- **Pattern**: when a Go struct field scans from a nullable DB column, but
+  every current code path happens to always populate it, that's a latent
+  gap a manual/integration check can surface long after the schema was
+  written — not a hypothetical. Investigated root cause before choosing a
+  fix rather than reflexively making the Go type nullable: since no
+  legitimate path can produce `NULL` here, the correct fix is enforcing
+  `NOT NULL DEFAULT ''` at the schema layer (filed as **PACK-031**), not
+  papering over it with `*string`/`sql.NullString` in Go.
+- Narrow fix shipped immediately (seed + backfill a placeholder
+  `avatarUrl` in `gen_token.go`) to unblock manual verification; the
+  schema-level fix and a repo-test regression guard (mirroring
+  `archivePackingListDirect`'s raw-SQL-fixture technique) are follow-up
+  work, not re-litigated here.
