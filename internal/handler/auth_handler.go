@@ -104,9 +104,10 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"accessToken": accessToken,
 		"user": gin.H{
-			"id":    user.ID,
-			"email": user.Email,
-			"name":  user.DisplayName,
+			"id":        user.ID,
+			"email":     user.Email,
+			"name":      user.DisplayName,
+			"avatarUrl": user.AvatarURL,
 		},
 	})
 }
@@ -152,5 +153,26 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // Me handles GET /me — returns the authenticated user's profile. Mirrors
 // RefreshToken's GetUserByID lookup and nil,nil-vs-error handling.
 func (h *AuthHandler) Me(c *gin.Context) {
-	c.Status(http.StatusNotImplemented)
+	userID, ok := userIDFromCtx(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	user, err := h.userRepo.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":        user.ID,
+		"email":     user.Email,
+		"name":      user.DisplayName,
+		"avatarUrl": user.AvatarURL,
+	})
 }
