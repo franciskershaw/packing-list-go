@@ -98,6 +98,7 @@ func main() {
 		authed.GET("/lists/:id", packingListHandler.GetByID)
 		authed.PATCH("/lists/:id", packingListHandler.Update)
 		authed.DELETE("/lists/:id", packingListHandler.Delete)
+		authed.POST("/lists/:id/unarchive", packingListHandler.Unarchive)
 		authed.POST("/lists/:id/items", packingListHandler.AddItem)
 		authed.PATCH("/lists/:id/items/:itemId", packingListHandler.UpdateItem)
 		authed.DELETE("/lists/:id/items/:itemId", packingListHandler.RemoveItem)

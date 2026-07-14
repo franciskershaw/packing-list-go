@@ -73,6 +73,11 @@ func (m *MockPackingListRepository) ArchivePackingList(ctx context.Context, id s
 	return args.Error(0)
 }
 
+func (m *MockPackingListRepository) UnarchivePackingList(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 func (m *MockPackingListRepository) AddPackingListItem(ctx context.Context, listID, itemID string, quantity int, notes *string) (*models.PackingListItem, error) {
 	args := m.Called(ctx, listID, itemID, quantity, notes)
 	if args.Get(0) == nil {
@@ -129,6 +134,7 @@ func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo h
 	authed.GET("/lists/:id", h.GetByID)
 	authed.PATCH("/lists/:id", h.Update)
 	authed.DELETE("/lists/:id", h.Delete)
+	authed.POST("/lists/:id/unarchive", h.Unarchive)
 	authed.POST("/lists/:id/items", h.AddItem)
 	authed.PATCH("/lists/:id/items/:itemId", h.UpdateItem)
 	authed.DELETE("/lists/:id/items/:itemId", h.RemoveItem)
@@ -713,6 +719,88 @@ func TestPackingListDelete_IdempotentOnAlreadyArchived(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		w := doRequest(t, r, http.MethodDelete, "/lists/"+testPackingListID, nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+		assert.Equal(t, http.StatusNoContent, w.Code)
+	}
+	repo.AssertExpectations(t)
+}
+
+// --- POST /lists/:id/unarchive ---
+
+func TestPackingListUnarchive_Success(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil)
+	repo.On("UnarchivePackingList", mock.Anything, testPackingListID).Return(nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/unarchive", nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUnarchive_NotOwned(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(otherUserID, nil), nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/unarchive", nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUnarchive_NotFound(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(nil, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/unarchive", nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUnarchive_InvalidID(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodPost, "/lists/not-a-uuid/unarchive", nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUnarchive_Unauthorized(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/unarchive", nil, "")
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListUnarchive_IdempotentOnAlreadyActive(t *testing.T) {
+	// Mirrors TestPackingListDelete_IdempotentOnAlreadyArchived: the handler
+	// makes no "already active" check of its own, so calling Unarchive a
+	// second time follows the exact same path and still returns 204.
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(packingListDetail(testPackingListUserID, nil), nil).Twice()
+	repo.On("UnarchivePackingList", mock.Anything, testPackingListID).Return(nil).Twice()
+
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	for i := 0; i < 2; i++ {
+		w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/unarchive", nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 		assert.Equal(t, http.StatusNoContent, w.Code)
 	}
 	repo.AssertExpectations(t)

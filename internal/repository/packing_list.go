@@ -260,6 +260,13 @@ func (r *PackingListRepository) ArchivePackingList(ctx context.Context, id strin
 	return nil
 }
 
+// UnarchivePackingList clears archived_at unconditionally, so calling it
+// again on an already-active list is a no-op success, not an error —
+// mirrors ArchivePackingList.
+func (r *PackingListRepository) UnarchivePackingList(ctx context.Context, id string) error {
+	return errors.New("not implemented")
+}
+
 // getPackingListCategories groups listID's packing_list_items by category,
 // categories ordered alphabetically by name. Within each category, items are
 // ordered by sort_order (NULLS LAST) then alphabetically by name — explicitly

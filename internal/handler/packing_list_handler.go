@@ -16,6 +16,7 @@ type PackingListRepository interface {
 	GetPackingListByID(ctx context.Context, id string) (*models.PackingListDetail, error)
 	UpdatePackingList(ctx context.Context, id string, name *string, eventDate *string) (*models.PackingListDetail, error)
 	ArchivePackingList(ctx context.Context, id string) error
+	UnarchivePackingList(ctx context.Context, id string) error
 	AddPackingListItem(ctx context.Context, listID, itemID string, quantity int, notes *string) (*models.PackingListItem, error)
 	UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error)
 	RemovePackingListItem(ctx context.Context, listID, itemID string) error
@@ -242,4 +243,11 @@ func (h *PackingListHandler) Delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// Unarchive handles POST /lists/:id/unarchive — the inverse of Delete.
+// 204, no body, same reasoning as PackAll/UnpackAll: a single deterministic
+// UPDATE an optimistic-update client already knows the result of.
+func (h *PackingListHandler) Unarchive(c *gin.Context) {
+	c.Status(http.StatusNotImplemented)
 }

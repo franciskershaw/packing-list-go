@@ -374,6 +374,45 @@ Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
+#  POST /lists/:id/unarchive
+# ══════════════════════════════════════════
+
+### ❌ 400 — invalid id
+POST http://localhost:{{$dotenv PORT}}/lists/not-a-uuid/unarchive
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ❌ 404 — does not exist
+POST http://localhost:{{$dotenv PORT}}/lists/00000000-0000-0000-0000-000000000000/unarchive
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ✅ 204 — unarchive createListNameOnly (archived above)
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}/unarchive
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ✅ 204 — idempotent: unarchiving it again still succeeds, not an error
+POST http://localhost:{{$dotenv PORT}}/lists/{{createListNameOnly.response.body.id}}/unarchive
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ✅ 200 — round-trip: GET /lists (active) includes it again
+GET http://localhost:{{$dotenv PORT}}/lists
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ✅ 200 — round-trip: GET /lists?archived=true no longer includes it
+GET http://localhost:{{$dotenv PORT}}/lists?archived=true
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+
+# ══════════════════════════════════════════
 #  POST /lists/:id/items
 # ══════════════════════════════════════════
 

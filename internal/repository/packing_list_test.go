@@ -531,3 +531,36 @@ func TestArchivePackingList_Idempotent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, archivedAt)
 }
+
+func TestUnarchivePackingList_ClearsArchivedAt(t *testing.T) {
+	ctx := context.Background()
+
+	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-unarchive-"+uuid.NewString(), nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+	archivePackingListDirect(t, created.ID, time.Now())
+
+	err = packingListRepo.UnarchivePackingList(ctx, created.ID.String())
+	require.NoError(t, err)
+
+	var archivedAt *time.Time
+	err = db.DB.QueryRowContext(ctx, `SELECT archived_at FROM packing_lists WHERE id = $1`, created.ID).Scan(&archivedAt)
+	require.NoError(t, err)
+	require.Nil(t, archivedAt)
+}
+
+func TestUnarchivePackingList_IdempotentOnAlreadyActive(t *testing.T) {
+	ctx := context.Background()
+
+	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-unarchidem-"+uuid.NewString(), nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+
+	err = packingListRepo.UnarchivePackingList(ctx, created.ID.String())
+	require.NoError(t, err, "unarchiving an already-active list must not error")
+
+	var archivedAt *time.Time
+	err = db.DB.QueryRowContext(ctx, `SELECT archived_at FROM packing_lists WHERE id = $1`, created.ID).Scan(&archivedAt)
+	require.NoError(t, err)
+	require.Nil(t, archivedAt)
+}
