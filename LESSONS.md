@@ -272,3 +272,18 @@ project kickoff.
   new file — same before/after-diff technique as PACK-019's mechanical
   retrofit, now shown to generalize to a structural rewrite, not just a
   repeated-edit retrofit.
+
+## 2026-07-14 — PACK-029 — Unarchive endpoint shipped; clean ticket
+
+- No rework — design followed precedent throughout (`PackAll`/`UnpackAll`'s
+  action-verb-pair route shape, `ArchivePackingList`'s idempotent-UPDATE
+  style, the newer `requireOwnedPackingList` helper). Stubs failed red for
+  the right reason (5/6 new handler tests), real implementation went green
+  first pass on both the mocked handler suite and the Neon-backed repo
+  tests.
+- One grill-me question offered two file-placement options that both
+  assumed a dedicated "archive handler" file already existed to mirror —
+  it doesn't, archive has always lived in `packing_list_handler.go`. User
+  caught it and answered with a clarifying question instead of picking
+  either option. Not promoted to a pattern — one-off, not worth a
+  standing rule.

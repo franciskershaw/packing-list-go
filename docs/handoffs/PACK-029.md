@@ -103,3 +103,7 @@ has no `docs/adr/` yet). Key decisions from the interview:
   `UnarchivePackingList` mock method.
 - `main.go`: register `authed.POST("/lists/:id/unarchive", packingListHandler.Unarchive)`
   next to the existing `DELETE /lists/:id` route.
+
+## Close-out
+
+Completed 2026-07-14. Retro entry in LESSONS.md.

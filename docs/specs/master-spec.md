@@ -275,7 +275,8 @@ the numbering implies an order.)*
     current source before filing: confirmed no PATCH/POST route or repo
     method touches `archived_at` in the unarchive direction
     (`internal/repository/packing_list.go`, `main.go` route list).
-  - **Status: not started.**
+  - **Status: Done.** Implemented as `POST /lists/:id/unarchive` (see
+    `docs/handoffs/PACK-029.md`).
 - **PACK-030** — Session-restore / user-profile endpoint. **Priority —
   pick up before PACK-021.**
   - `GET /me` (or similar) returning the authenticated user's profile
