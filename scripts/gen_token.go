@@ -30,6 +30,7 @@ const (
 	devGoogleID    = "dev-tools-kitted-test-account"
 	devEmail       = "dev-test@kitted-api.internal"
 	devDisplayName = "Dev Test User"
+	devAvatarURL   = "https://kitted-api.internal/dev-avatar.png"
 )
 
 func main() {
@@ -60,12 +61,15 @@ func main() {
 	}
 	defer db.Close()
 
-	// ON CONFLICT DO NOTHING handles any unique constraint collision.
+	// ON CONFLICT DO UPDATE backfills avatar_url on a pre-existing dev row
+	// that predates this column being seeded (avatar_url is nullable in the
+	// schema, and GetUserByID scans it into a non-nullable Go string — a
+	// NULL there fails that scan with a real error, not a clean 404).
 	_, err = db.Exec(`
-		INSERT INTO users (id, google_id, email, display_name, last_login_at)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING`,
-		preferredID, devGoogleID, devEmail, devDisplayName, time.Now(),
+		INSERT INTO users (id, google_id, email, display_name, avatar_url, last_login_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (google_id) DO UPDATE SET avatar_url = EXCLUDED.avatar_url`,
+		preferredID, devGoogleID, devEmail, devDisplayName, devAvatarURL, time.Now(),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "insert user error: %v\n", err)
