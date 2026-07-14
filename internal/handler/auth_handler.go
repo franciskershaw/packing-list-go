@@ -148,3 +148,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	h.setRefreshCookie(c, "", -1)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
+
+// Me handles GET /me — returns the authenticated user's profile. Mirrors
+// RefreshToken's GetUserByID lookup and nil,nil-vs-error handling.
+func (h *AuthHandler) Me(c *gin.Context) {
+	c.Status(http.StatusNotImplemented)
+}

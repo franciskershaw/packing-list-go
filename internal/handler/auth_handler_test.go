@@ -12,6 +12,7 @@ import (
 	"github.com/franciskershaw/packing-list-go/config"
 	"github.com/franciskershaw/packing-list-go/internal/auth"
 	"github.com/franciskershaw/packing-list-go/internal/handler"
+	"github.com/franciskershaw/packing-list-go/internal/middleware"
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/franciskershaw/packing-list-go/internal/testutil"
 	"github.com/gin-gonic/gin"
@@ -89,6 +90,9 @@ func newTestRouter(h *handler.AuthHandler) *gin.Engine {
 	r.GET("/auth/google/callback", h.GoogleCallback)
 	r.POST("/auth/refresh", h.RefreshToken)
 	r.POST("/auth/logout", h.Logout)
+	authed := r.Group("/")
+	authed.Use(middleware.AuthMiddleware(testutil.TestJWTSecretAccess))
+	authed.GET("/me", h.Me)
 	return r
 }
 
@@ -146,6 +150,10 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &body)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, body["accessToken"])
+
+	userBody, ok := body["user"].(map[string]any)
+	assert.True(t, ok, "expected a user object in the response")
+	assert.Equal(t, user.AvatarURL, userBody["avatarUrl"])
 
 	// Refresh token cookie must be set
 	cookies := w.Result().Cookies()
@@ -405,5 +413,80 @@ func TestLogout_ClearsCookie(t *testing.T) {
 	assert.True(t, refreshCookie.MaxAge < 0, "expected refreshToken cookie to be expired, got MaxAge=%d", refreshCookie.MaxAge)
 	assert.False(t, refreshCookie.Secure, "expected Secure=false in development")
 	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
+}
+
+// --- Me tests ---
+
+func TestMe_Success(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	user := testUser()
+	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil)
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
+	r := newTestRouter(h)
+
+	w := doRequest(t, r, http.MethodGet, "/me", nil, testutil.AuthHeader(t, user.Email, user.ID.String()))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	assert.NoError(t, err)
+	assert.Equal(t, user.ID.String(), body["id"])
+	assert.Equal(t, user.Email, body["email"])
+	assert.Equal(t, user.DisplayName, body["name"])
+	assert.Equal(t, user.AvatarURL, body["avatarUrl"])
+
+	userRepo.AssertExpectations(t)
+}
+
+func TestMe_UserNotFound(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	user := testUser()
+	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, nil)
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
+	r := newTestRouter(h)
+
+	w := doRequest(t, r, http.MethodGet, "/me", nil, testutil.AuthHeader(t, user.Email, user.ID.String()))
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var body map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	assert.NoError(t, err)
+	assert.Equal(t, "user not found", body["error"])
+
+	userRepo.AssertExpectations(t)
+}
+
+func TestMe_UserLookupError(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	user := testUser()
+	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, errors.New("db error"))
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
+	r := newTestRouter(h)
+
+	w := doRequest(t, r, http.MethodGet, "/me", nil, testutil.AuthHeader(t, user.Email, user.ID.String()))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	userRepo.AssertExpectations(t)
+}
+
+func TestMe_Unauthorized(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, testConfig("development"))
+	r := newTestRouter(h)
+
+	w := doRequest(t, r, http.MethodGet, "/me", nil, "")
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	userRepo.AssertExpectations(t)
 }
 

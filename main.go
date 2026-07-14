@@ -73,6 +73,8 @@ func main() {
 	authed := server.Group("/")
 	authed.Use(middleware.AuthMiddleware(cfg.JWTSecretAccess))
 	{
+		authed.GET("/me", authHandler.Me)
+
 		authed.GET("/categories", categoryHandler.List)
 		authed.POST("/categories", categoryHandler.Create)
 		authed.PATCH("/categories/:id", categoryHandler.Update)

@@ -1,0 +1,27 @@
+# Packing List API — Auth Endpoints
+#
+# SETUP (do this once before running any request):
+#
+#   1. Start the server:  go run main.go
+#   2. Generate a token:  go run scripts/gen_token.go
+#
+# Token and host resolve automatically from .env — see requests/README.md
+# for how that works. No variables to paste in this file.
+#
+# Only GET /me is covered here. Login/callback need a real browser
+# round-trip and refresh/logout are cookie-based automation not built yet
+# — see requests/README.md's "what's deliberately not covered" section.
+
+
+# ══════════════════════════════════════════
+#  GET /me
+# ══════════════════════════════════════════
+
+### ✅ 200 — returns the authenticated user's profile
+GET http://localhost:{{$dotenv PORT}}/me
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### 🔒 401 — no token
+GET http://localhost:{{$dotenv PORT}}/me

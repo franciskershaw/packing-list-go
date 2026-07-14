@@ -44,10 +44,11 @@ a row.
   a representative write), not after every single endpoint — the auth
   middleware is shared/global, so one or two checks per file already prove
   it's wired up without repeating the same assertion at every route.
-- **`requests/auth.http` doesn't exist.** The Google OAuth login/callback
-  flow needs a real browser round-trip and can't be driven by a plain
-  `.http` request. `/auth/refresh` and `/auth/logout` are cookie-based and
-  could be automated, but that's its own piece of work, not done yet.
+- **`requests/auth.http` only covers `GET /me`.** The Google OAuth
+  login/callback flow needs a real browser round-trip and can't be driven
+  by a plain `.http` request. `/auth/refresh` and `/auth/logout` are
+  cookie-based and could be automated, but that's its own piece of work,
+  not done yet.
 - There's no separate "smoke test" file. If a fast per-commit sanity
   check becomes a real need again (vs. this being a full pre-close-out
   regression pass), that's worth its own design rather than retrofitting
