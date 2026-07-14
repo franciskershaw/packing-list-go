@@ -249,5 +249,15 @@ func (h *PackingListHandler) Delete(c *gin.Context) {
 // 204, no body, same reasoning as PackAll/UnpackAll: a single deterministic
 // UPDATE an optimistic-update client already knows the result of.
 func (h *PackingListHandler) Unarchive(c *gin.Context) {
-	c.Status(http.StatusNotImplemented)
+	list, _, ok := h.requireOwnedPackingList(c)
+	if !ok {
+		return
+	}
+
+	if err := h.repo.UnarchivePackingList(c.Request.Context(), list.ID.String()); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unarchive packing list"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

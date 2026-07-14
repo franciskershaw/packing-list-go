@@ -264,7 +264,11 @@ func (r *PackingListRepository) ArchivePackingList(ctx context.Context, id strin
 // again on an already-active list is a no-op success, not an error —
 // mirrors ArchivePackingList.
 func (r *PackingListRepository) UnarchivePackingList(ctx context.Context, id string) error {
-	return errors.New("not implemented")
+	_, err := r.db.ExecContext(ctx, `UPDATE packing_lists SET archived_at = NULL WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to unarchive packing list: %w", err)
+	}
+	return nil
 }
 
 // getPackingListCategories groups listID's packing_list_items by category,
