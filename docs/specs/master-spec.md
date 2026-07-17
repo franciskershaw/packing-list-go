@@ -321,6 +321,36 @@ the numbering implies an order.)*
     immediate symptom.
   - **Status: not started.**
 
+- **PACK-032** — OAuth callback: redirect to frontend instead of
+  returning JSON. **Priority — blocks the frontend's sign-in ticket
+  (`packing-list-react`'s `PACKFE-003`).**
+  - `GET /auth/google/callback` (`internal/handler/auth_handler.go`)
+    currently sets the refresh cookie and renders the access token as
+    JSON directly in the browser tab. Change it to redirect to the
+    frontend's callback route instead (e.g.
+    `http://localhost:5173/auth/callback` in dev — exact prod value
+    TBD once a frontend deployment target is chosen), with **no token
+    in the redirect URL**. The refresh cookie continues to be set as
+    it is today; the frontend mints its own access token client-side by
+    calling `POST /auth/refresh` immediately after landing on that
+    route.
+  - Found 2026-07-17 during the `packing-list-react` project kickoff —
+    flagged directly by the 2026-07-11 audit's finding S9 ("the frontend
+    integration will need a deliberate redirect design — never put the
+    token in a URL"), and formalized as
+    `packing-list-react/docs/adr/001-auth-session-model.md`. That ADR
+    documents the full handoff flow this ticket needs to support and
+    should be read before this ticket's own `grill-me`.
+  - The frontend redirect target will need to be configurable (dev vs
+    whatever prod origin gets chosen later) rather than hardcoded — a
+    concrete AC for this ticket's own handoff doc, not decided here.
+  - Related but distinct from **PACK-027** (refresh-token rotation with
+    reuse detection) — that ticket is about strengthening the existing
+    token issuance, this one is about how tokens reach the frontend at
+    all. Both are auth-integration work and reasonable to pick up in the
+    same sitting, but they are separate ACs, not one ticket.
+  - **Status: not started.**
+
 - **PACK-021** — Server lifecycle hardening.
   - `http.Server` timeouts (`ReadHeaderTimeout`/`ReadTimeout`/
     `WriteTimeout`/`IdleTimeout`), graceful shutdown
