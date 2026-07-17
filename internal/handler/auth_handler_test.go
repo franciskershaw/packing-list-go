@@ -102,6 +102,7 @@ func testConfig(environment string) *config.Config {
 		Environment:      environment,
 		JWTSecretAccess:  testutil.TestJWTSecretAccess,
 		JWTSecretRefresh: testutil.TestJWTSecretRefresh,
+		FrontendURL:      "http://localhost:5173",
 	}
 }
 
@@ -144,16 +145,10 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var body map[string]any
-	err := json.Unmarshal(w.Body.Bytes(), &body)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, body["accessToken"])
-
-	userBody, ok := body["user"].(map[string]any)
-	assert.True(t, ok, "expected a user object in the response")
-	assert.Equal(t, user.AvatarURL, userBody["avatarUrl"])
+	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+	assert.Equal(t, "http://localhost:5173/auth/callback", w.Header().Get("Location"))
+	assert.NotContains(t, w.Body.String(), "accessToken", "access token must never appear in the callback response body")
+	assert.NotContains(t, w.Body.String(), user.AvatarURL, "user data must never appear in the callback response body")
 
 	// Refresh token cookie must be set
 	cookies := w.Result().Cookies()
@@ -197,7 +192,8 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+	assert.Equal(t, "http://localhost:5173/auth/callback", w.Header().Get("Location"))
 
 	cookies := w.Result().Cookies()
 	var refreshCookie *http.Cookie

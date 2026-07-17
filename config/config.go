@@ -18,6 +18,7 @@ type Config struct {
 	GoogleClientSecret string
 	GoogleRedirectURL  string
 	GoogleOAuth2Config *oauth2.Config
+	FrontendURL        string
 }
 
 func Load() (*Config, error) {

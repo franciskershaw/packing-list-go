@@ -10,6 +10,7 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/test")
 	t.Setenv("JWT_SECRET_ACCESS", "test-access-secret")
 	t.Setenv("JWT_SECRET_REFRESH", "test-refresh-secret")
+	t.Setenv("FRONTEND_URL", "http://localhost:5173")
 }
 
 func TestLoad_EnvironmentDefaultsToDevelopment(t *testing.T) {
@@ -37,5 +38,15 @@ func TestLoad_EnvironmentReadsAppEnv(t *testing.T) {
 
 	if cfg.Environment != "production" {
 		t.Errorf("expected Environment %q, got %q", "production", cfg.Environment)
+	}
+}
+
+func TestLoad_RequiresFrontendURL(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("FRONTEND_URL")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected Load() to return an error when FRONTEND_URL is unset, got nil")
 	}
 }
