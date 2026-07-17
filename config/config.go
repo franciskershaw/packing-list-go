@@ -31,6 +31,7 @@ func Load() (*Config, error) {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
+		FrontendURL:        os.Getenv("FRONTEND_URL"),
 	}
 
 	// Validate required env vars
@@ -42,6 +43,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWTSecretRefresh == "" {
 		return nil, fmt.Errorf("JWT_SECRET_REFRESH not set")
+	}
+	if cfg.FrontendURL == "" {
+		return nil, fmt.Errorf("FRONTEND_URL not set")
 	}
 
 	// Initialize Google OAuth2 config
