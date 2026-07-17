@@ -349,7 +349,11 @@ the numbering implies an order.)*
     token issuance, this one is about how tokens reach the frontend at
     all. Both are auth-integration work and reasonable to pick up in the
     same sitting, but they are separate ACs, not one ticket.
-  - **Status: not started.**
+  - **Status: Done.** See `docs/handoffs/PACK-032.md`. A separate,
+    unrelated bug (`GOOGLE_REDIRECT_URI`/`GOOGLE_REDIRECT_URL` env var
+    name mismatch) was found and fixed while verifying Google Cloud
+    Console config for this ticket's manual check — not one of this
+    ticket's ACs, flagged and fixed with explicit go-ahead.
 
 - **PACK-021** — Server lifecycle hardening.
   - `http.Server` timeouts (`ReadHeaderTimeout`/`ReadTimeout`/

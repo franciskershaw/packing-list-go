@@ -314,3 +314,21 @@ project kickoff.
   schema-level fix and a repo-test regression guard (mirroring
   `archivePackingListDirect`'s raw-SQL-fixture technique) are follow-up
   work, not re-litigated here.
+
+## 2026-07-17 — PACK-032 — OAuth redirect shipped; manual verification caught another env-var bug mocks couldn't
+
+- No rework on PACK-032's own ACs — design held through implementation
+  exactly as interviewed (required `FRONTEND_URL`, 307 matching
+  `LoginWithGoogle`'s existing precedent, the stale `SameSite` comment's
+  own "revisit if..." trigger checked and updated rather than the cookie
+  policy itself). A dedicated ADR was explicitly declined despite being
+  flagged as a new pattern — judged small enough for the handoff doc's
+  context section to carry instead.
+- **Pattern**: second ticket in a row (after PACK-030) where manual/
+  integration verification caught a bug no mocked test could — this time
+  a `GOOGLE_REDIRECT_URI`/`GOOGLE_REDIRECT_URL` env var name mismatch,
+  found while checking real Google Cloud Console config, not by any test
+  in the suite. Flagged as out-of-scope before fixing, fixed only after
+  explicit go-ahead.
+- Mid-ticket feedback: cross-repo file-path references don't belong in Go
+  code comments (fine in markdown/handoff docs) — two comments trimmed.

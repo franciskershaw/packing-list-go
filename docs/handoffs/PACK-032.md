@@ -157,3 +157,7 @@ Key decisions from the interview (2026-07-17):
   5. The browser landing on a connection error at `:5173/auth/callback`
      afterward is **expected** — nothing listens there until `PACKFE-003`
      ships. Not a failure of this ticket.
+
+## Close-out
+
+Completed 2026-07-17. Retro entry in LESSONS.md.
