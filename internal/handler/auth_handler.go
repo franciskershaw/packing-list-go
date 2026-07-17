@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/franciskershaw/packing-list-go/config"
@@ -36,8 +37,12 @@ func NewAuthHandler(userRepo UserRepository, oauthManager OAuthManager, cfg *con
 
 // setRefreshCookie sets the refreshToken cookie with consistent
 // Secure/SameSite/HttpOnly attributes for both issuing (GoogleCallback)
-// and clearing (Logout) it. SameSite is Lax rather than None because no
-// cross-origin frontend consumer exists yet; revisit if one is added.
+// and clearing (Logout) it. SameSite=Lax remains correct after
+// PACK-032's redirect to a separate frontend origin: the frontend proxies
+// API calls through its own origin in local dev, so this cookie only
+// crosses directly to this API during the OAuth redirect itself, which
+// Lax always permits. Revisit if a cross-origin production deployment
+// changes that assumption.
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, value string, maxAge int) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("refreshToken", value, maxAge, "/", "", h.cfg.Environment == "production", true)
@@ -87,12 +92,6 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := auth.GenerateAccessToken(user.Email, user.ID.String(), h.cfg.JWTSecretAccess)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
-		return
-	}
-
 	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), h.cfg.JWTSecretRefresh)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
@@ -101,15 +100,10 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	h.setRefreshCookie(c, refreshToken, 7*24*60*60)
 
-	c.JSON(http.StatusOK, gin.H{
-		"accessToken": accessToken,
-		"user": gin.H{
-			"id":        user.ID,
-			"email":     user.Email,
-			"name":      user.DisplayName,
-			"avatarUrl": user.AvatarURL,
-		},
-	})
+	// No access token or user data in the redirect — the frontend mints
+	// its own access token via POST /auth/refresh immediately after
+	// landing on this route, using the cookie just set above.
+	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/auth/callback", h.cfg.FrontendURL))
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {

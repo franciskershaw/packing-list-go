@@ -30,7 +30,7 @@ func Load() (*Config, error) {
 		JWTSecretRefresh:   os.Getenv("JWT_SECRET_REFRESH"),
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
+		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URI"),
 		FrontendURL:        os.Getenv("FRONTEND_URL"),
 	}
 
