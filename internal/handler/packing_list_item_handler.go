@@ -28,7 +28,7 @@ func (h *PackingListHandler) requireOwnedPackingList(c *gin.Context) (list *mode
 
 	list, err := h.repo.GetPackingListByID(c.Request.Context(), listID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		internalError(c, "failed to fetch packing list", err)
 		return nil, "", false
 	}
 	if !isPackingListOwned(list, userID) {
@@ -70,7 +70,7 @@ func (h *PackingListHandler) AddItem(c *gin.Context) {
 
 	item, err := h.itemRepo.GetItemByID(c.Request.Context(), req.ItemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch item"})
+		internalError(c, "failed to fetch item", err)
 		return
 	}
 	if !isItemAccessible(item, userID) {
@@ -97,7 +97,7 @@ func (h *PackingListHandler) AddItem(c *gin.Context) {
 
 	exists, err := h.repo.PackingListItemExists(c.Request.Context(), listID, req.ItemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check packing list item"})
+		internalError(c, "failed to check packing list item", err)
 		return
 	}
 	if exists {
@@ -107,7 +107,7 @@ func (h *PackingListHandler) AddItem(c *gin.Context) {
 
 	created, err := h.repo.AddPackingListItem(c.Request.Context(), listID, req.ItemID, quantity, notesPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add packing list item"})
+		internalError(c, "failed to add packing list item", err)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 
 	exists, err := h.repo.PackingListItemExists(c.Request.Context(), listID, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check packing list item"})
+		internalError(c, "failed to check packing list item", err)
 		return
 	}
 	if !exists {
@@ -176,7 +176,7 @@ func (h *PackingListHandler) UpdateItem(c *gin.Context) {
 
 	updated, err := h.repo.UpdatePackingListItem(c.Request.Context(), listID, itemID, quantityPtr, notesPtr, req.SortOrder, req.IsPacked)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update packing list item"})
+		internalError(c, "failed to update packing list item", err)
 		return
 	}
 
@@ -199,7 +199,7 @@ func (h *PackingListHandler) RemoveItem(c *gin.Context) {
 
 	exists, err := h.repo.PackingListItemExists(c.Request.Context(), listID, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check packing list item"})
+		internalError(c, "failed to check packing list item", err)
 		return
 	}
 	if !exists {
@@ -208,7 +208,7 @@ func (h *PackingListHandler) RemoveItem(c *gin.Context) {
 	}
 
 	if err := h.repo.RemovePackingListItem(c.Request.Context(), listID, itemID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove packing list item"})
+		internalError(c, "failed to remove packing list item", err)
 		return
 	}
 
@@ -238,13 +238,13 @@ func (h *PackingListHandler) BulkAddItems(c *gin.Context) {
 
 	categoryItems, err := h.itemRepo.GetItems(c.Request.Context(), userID, &req.CategoryID, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch category items"})
+		internalError(c, "failed to fetch category items", err)
 		return
 	}
 
 	existing, err := h.repo.GetPackingListItems(c.Request.Context(), listID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list items"})
+		internalError(c, "failed to fetch packing list items", err)
 		return
 	}
 	alreadyOnList := make(map[uuid.UUID]bool, len(existing))
@@ -259,7 +259,7 @@ func (h *PackingListHandler) BulkAddItems(c *gin.Context) {
 		}
 		created, err := h.repo.AddPackingListItem(c.Request.Context(), listID, item.ID.String(), 1, nil)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add packing list item"})
+			internalError(c, "failed to add packing list item", err)
 			return
 		}
 		added = append(added, *created)

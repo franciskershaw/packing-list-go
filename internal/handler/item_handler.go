@@ -43,7 +43,7 @@ func (h *ItemHandler) List(c *gin.Context) {
 		}
 		accessible, err := h.repo.CategoryIsAccessible(c.Request.Context(), categoryID, userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check category"})
+			internalError(c, "failed to check category", err)
 			return
 		}
 		if !accessible {
@@ -60,7 +60,7 @@ func (h *ItemHandler) List(c *gin.Context) {
 
 	items, err := h.repo.GetItems(c.Request.Context(), userID, categoryIDPtr, searchPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch items"})
+		internalError(c, "failed to fetch items", err)
 		return
 	}
 
@@ -93,7 +93,7 @@ func (h *ItemHandler) Create(c *gin.Context) {
 
 	exists, err := h.repo.ItemNameExistsInCategory(c.Request.Context(), req.CategoryID, name, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check item name"})
+		internalError(c, "failed to check item name", err)
 		return
 	}
 	if exists {
@@ -103,7 +103,7 @@ func (h *ItemHandler) Create(c *gin.Context) {
 
 	item, err := h.repo.CreateItem(c.Request.Context(), userID, name, req.CategoryID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create item"})
+		internalError(c, "failed to create item", err)
 		return
 	}
 
@@ -153,7 +153,7 @@ func (h *ItemHandler) Update(c *gin.Context) {
 	}
 	item, err := h.repo.GetItemByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch item"})
+		internalError(c, "failed to fetch item", err)
 		return
 	}
 	if !isItemOwned(item, userID) {
@@ -178,7 +178,7 @@ func (h *ItemHandler) Update(c *gin.Context) {
 
 	exists, err := h.repo.ItemNameExistsInCategory(c.Request.Context(), targetCategory, targetName, &id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check item name"})
+		internalError(c, "failed to check item name", err)
 		return
 	}
 	if exists {
@@ -188,7 +188,7 @@ func (h *ItemHandler) Update(c *gin.Context) {
 
 	updated, err := h.repo.UpdateItem(c.Request.Context(), id, namePtr, req.CategoryID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update item"})
+		internalError(c, "failed to update item", err)
 		return
 	}
 
@@ -209,7 +209,7 @@ func (h *ItemHandler) Delete(c *gin.Context) {
 	}
 	item, err := h.repo.GetItemByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch item"})
+		internalError(c, "failed to fetch item", err)
 		return
 	}
 	if !isItemOwned(item, userID) {
@@ -219,7 +219,7 @@ func (h *ItemHandler) Delete(c *gin.Context) {
 
 	inUse, err := h.repo.ItemIsInUse(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check item usage"})
+		internalError(c, "failed to check item usage", err)
 		return
 	}
 	if inUse {
@@ -228,7 +228,7 @@ func (h *ItemHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.repo.DeleteItem(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete item"})
+		internalError(c, "failed to delete item", err)
 		return
 	}
 
@@ -255,7 +255,7 @@ func validateAccessibleCategory(c *gin.Context, repo categoryAccessibilityChecke
 	}
 	accessible, err := repo.CategoryIsAccessible(c.Request.Context(), categoryID, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check category"})
+		internalError(c, "failed to check category", err)
 		return false
 	}
 	if !accessible {

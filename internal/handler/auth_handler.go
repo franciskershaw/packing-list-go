@@ -88,13 +88,13 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	user, err := h.userRepo.GetOrCreateUser(ctx, idTokenClaims.Email, idTokenClaims.GoogleID, idTokenClaims.DisplayName, idTokenClaims.AvatarURL)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process user"})
+		internalError(c, "failed to process user", err)
 		return
 	}
 
 	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), h.cfg.JWTSecretRefresh)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
+		internalError(c, "failed to generate refresh token", err)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	ctx := context.Background()
 	user, err := h.userRepo.GetUserByID(ctx, claims.Subject)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		internalError(c, "failed to look up user", err)
 		return
 	}
 	if user == nil {
@@ -132,7 +132,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	newAccessToken, err := auth.GenerateAccessToken(user.Email, user.ID.String(), h.cfg.JWTSecretAccess)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		internalError(c, "failed to generate token", err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	user, err := h.userRepo.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		internalError(c, "failed to look up user", err)
 		return
 	}
 	if user == nil {

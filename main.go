@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -17,6 +18,9 @@ import (
 )
 
 func main() {
+	// Match Gin's own default writer (os.Stdout) so log output interleaves in order.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -49,6 +53,7 @@ func main() {
 
 	// Initialize Gin server
 	server := gin.Default()
+	server.Use(middleware.ErrorLogger())
 
 	// Health check (public)
 	server.GET("/health", func(c *gin.Context) {

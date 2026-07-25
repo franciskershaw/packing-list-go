@@ -16,7 +16,7 @@ func (h *PackingListHandler) PackAll(c *gin.Context) {
 	}
 
 	if err := h.repo.PackAllItems(c.Request.Context(), list.ID.String()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to pack all items"})
+		internalError(c, "failed to pack all items", err)
 		return
 	}
 
@@ -32,7 +32,7 @@ func (h *PackingListHandler) UnpackAll(c *gin.Context) {
 	}
 
 	if err := h.repo.UnpackAllItems(c.Request.Context(), list.ID.String()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unpack all items"})
+		internalError(c, "failed to unpack all items", err)
 		return
 	}
 

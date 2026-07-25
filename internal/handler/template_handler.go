@@ -52,7 +52,7 @@ func (h *TemplateHandler) List(c *gin.Context) {
 
 	templates, err := h.repo.GetTemplates(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch templates"})
+		internalError(c, "failed to fetch templates", err)
 		return
 	}
 
@@ -86,7 +86,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 
 	exists, err := h.repo.TemplateNameExistsForUser(c.Request.Context(), userID, name, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check template name"})
+		internalError(c, "failed to check template name", err)
 		return
 	}
 	if exists {
@@ -96,7 +96,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 
 	created, err := h.repo.CreateTemplate(c.Request.Context(), userID, name, descPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create template"})
+		internalError(c, "failed to create template", err)
 		return
 	}
 
@@ -118,7 +118,7 @@ func (h *TemplateHandler) GetByID(c *gin.Context) {
 
 	template, err := h.repo.GetTemplateByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template"})
+		internalError(c, "failed to fetch template", err)
 		return
 	}
 	if !isTemplateOwned(template, userID) {
@@ -171,7 +171,7 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 
 	template, err := h.repo.GetTemplateByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template"})
+		internalError(c, "failed to fetch template", err)
 		return
 	}
 	if !isTemplateOwned(template, userID) {
@@ -182,7 +182,7 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 	if namePtr != nil {
 		exists, err := h.repo.TemplateNameExistsForUser(c.Request.Context(), userID, *namePtr, &id)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check template name"})
+			internalError(c, "failed to check template name", err)
 			return
 		}
 		if exists {
@@ -193,7 +193,7 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 
 	updated, err := h.repo.UpdateTemplate(c.Request.Context(), id, namePtr, descPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update template"})
+		internalError(c, "failed to update template", err)
 		return
 	}
 
@@ -215,7 +215,7 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 
 	template, err := h.repo.GetTemplateByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template"})
+		internalError(c, "failed to fetch template", err)
 		return
 	}
 	if !isTemplateOwned(template, userID) {
@@ -224,7 +224,7 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.repo.DeleteTemplate(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete template"})
+		internalError(c, "failed to delete template", err)
 		return
 	}
 

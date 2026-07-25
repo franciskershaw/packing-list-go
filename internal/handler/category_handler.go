@@ -36,7 +36,7 @@ func (h *CategoryHandler) List(c *gin.Context) {
 
 	categories, err := h.repo.GetCategories(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch categories"})
+		internalError(c, "failed to fetch categories", err)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (h *CategoryHandler) Create(c *gin.Context) {
 
 	exists, err := h.repo.CategoryNameExistsForUser(c.Request.Context(), userID, name, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check category name"})
+		internalError(c, "failed to check category name", err)
 		return
 	}
 	if exists {
@@ -74,7 +74,7 @@ func (h *CategoryHandler) Create(c *gin.Context) {
 
 	category, err := h.repo.CreateCategory(c.Request.Context(), userID, name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create category"})
+		internalError(c, "failed to create category", err)
 		return
 	}
 
@@ -107,7 +107,7 @@ func (h *CategoryHandler) Update(c *gin.Context) {
 	}
 	category, err := h.repo.GetCategoryByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch category"})
+		internalError(c, "failed to fetch category", err)
 		return
 	}
 	if !isOwned(category, userID) {
@@ -117,7 +117,7 @@ func (h *CategoryHandler) Update(c *gin.Context) {
 
 	exists, err := h.repo.CategoryNameExistsForUser(c.Request.Context(), userID, name, &id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check category name"})
+		internalError(c, "failed to check category name", err)
 		return
 	}
 	if exists {
@@ -127,7 +127,7 @@ func (h *CategoryHandler) Update(c *gin.Context) {
 
 	updated, err := h.repo.UpdateCategory(c.Request.Context(), id, name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update category"})
+		internalError(c, "failed to update category", err)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 	}
 	category, err := h.repo.GetCategoryByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch category"})
+		internalError(c, "failed to fetch category", err)
 		return
 	}
 	if !isOwned(category, userID) {
@@ -158,7 +158,7 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 
 	hasItems, err := h.repo.CategoryHasItems(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check category items"})
+		internalError(c, "failed to check category items", err)
 		return
 	}
 	if hasItems {
@@ -167,7 +167,7 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.repo.DeleteCategory(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete category"})
+		internalError(c, "failed to delete category", err)
 		return
 	}
 

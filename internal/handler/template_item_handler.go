@@ -28,7 +28,7 @@ func (h *TemplateHandler) requireOwnedTemplate(c *gin.Context) (template *models
 
 	template, err := h.repo.GetTemplateByID(c.Request.Context(), templateID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template"})
+		internalError(c, "failed to fetch template", err)
 		return nil, "", false
 	}
 	if !isTemplateOwned(template, userID) {
@@ -66,7 +66,7 @@ func (h *TemplateHandler) AddItem(c *gin.Context) {
 
 	item, err := h.itemRepo.GetItemByID(c.Request.Context(), req.ItemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch item"})
+		internalError(c, "failed to fetch item", err)
 		return
 	}
 	if !isItemAccessible(item, userID) {
@@ -93,7 +93,7 @@ func (h *TemplateHandler) AddItem(c *gin.Context) {
 
 	exists, err := h.repo.TemplateItemExists(c.Request.Context(), templateID, req.ItemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check template item"})
+		internalError(c, "failed to check template item", err)
 		return
 	}
 	if exists {
@@ -103,7 +103,7 @@ func (h *TemplateHandler) AddItem(c *gin.Context) {
 
 	created, err := h.repo.AddTemplateItem(c.Request.Context(), templateID, req.ItemID, quantity, notesPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add template item"})
+		internalError(c, "failed to add template item", err)
 		return
 	}
 
@@ -138,7 +138,7 @@ func (h *TemplateHandler) UpdateItem(c *gin.Context) {
 
 	exists, err := h.repo.TemplateItemExists(c.Request.Context(), templateID, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check template item"})
+		internalError(c, "failed to check template item", err)
 		return
 	}
 	if !exists {
@@ -166,7 +166,7 @@ func (h *TemplateHandler) UpdateItem(c *gin.Context) {
 
 	updated, err := h.repo.UpdateTemplateItem(c.Request.Context(), templateID, itemID, quantityPtr, notesPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update template item"})
+		internalError(c, "failed to update template item", err)
 		return
 	}
 
@@ -188,7 +188,7 @@ func (h *TemplateHandler) RemoveItem(c *gin.Context) {
 
 	exists, err := h.repo.TemplateItemExists(c.Request.Context(), templateID, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check template item"})
+		internalError(c, "failed to check template item", err)
 		return
 	}
 	if !exists {
@@ -197,7 +197,7 @@ func (h *TemplateHandler) RemoveItem(c *gin.Context) {
 	}
 
 	if err := h.repo.RemoveTemplateItem(c.Request.Context(), templateID, itemID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove template item"})
+		internalError(c, "failed to remove template item", err)
 		return
 	}
 
@@ -224,13 +224,13 @@ func (h *TemplateHandler) BulkAddItems(c *gin.Context) {
 
 	categoryItems, err := h.itemRepo.GetItems(c.Request.Context(), userID, &req.CategoryID, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch category items"})
+		internalError(c, "failed to fetch category items", err)
 		return
 	}
 
 	existing, err := h.repo.GetTemplateItems(c.Request.Context(), templateID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template items"})
+		internalError(c, "failed to fetch template items", err)
 		return
 	}
 	alreadyOnTemplate := make(map[uuid.UUID]bool, len(existing))
@@ -245,7 +245,7 @@ func (h *TemplateHandler) BulkAddItems(c *gin.Context) {
 		}
 		created, err := h.repo.AddTemplateItem(c.Request.Context(), templateID, item.ID.String(), 1, nil)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add template item"})
+			internalError(c, "failed to add template item", err)
 			return
 		}
 		added = append(added, *created)

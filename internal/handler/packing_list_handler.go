@@ -79,7 +79,7 @@ func (h *PackingListHandler) Create(c *gin.Context) {
 
 		template, err := h.templateRepo.GetTemplateByID(c.Request.Context(), *req.TemplateID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch template"})
+			internalError(c, "failed to fetch template", err)
 			return
 		}
 		if !isTemplateOwned(template, userID) {
@@ -90,7 +90,7 @@ func (h *PackingListHandler) Create(c *gin.Context) {
 
 	created, err := h.repo.CreatePackingList(c.Request.Context(), userID, name, req.EventDate, req.TemplateID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create packing list"})
+		internalError(c, "failed to create packing list", err)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (h *PackingListHandler) List(c *gin.Context) {
 
 	lists, err := h.repo.GetPackingLists(c.Request.Context(), userID, archived)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing lists"})
+		internalError(c, "failed to fetch packing lists", err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *PackingListHandler) GetByID(c *gin.Context) {
 
 	list, err := h.repo.GetPackingListByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		internalError(c, "failed to fetch packing list", err)
 		return
 	}
 	if !isPackingListOwned(list, userID) {
@@ -194,7 +194,7 @@ func (h *PackingListHandler) Update(c *gin.Context) {
 
 	list, err := h.repo.GetPackingListByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		internalError(c, "failed to fetch packing list", err)
 		return
 	}
 	if !isPackingListOwned(list, userID) {
@@ -204,7 +204,7 @@ func (h *PackingListHandler) Update(c *gin.Context) {
 
 	updated, err := h.repo.UpdatePackingList(c.Request.Context(), id, namePtr, req.EventDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update packing list"})
+		internalError(c, "failed to update packing list", err)
 		return
 	}
 
@@ -229,7 +229,7 @@ func (h *PackingListHandler) Delete(c *gin.Context) {
 
 	list, err := h.repo.GetPackingListByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch packing list"})
+		internalError(c, "failed to fetch packing list", err)
 		return
 	}
 	if !isPackingListOwned(list, userID) {
@@ -238,7 +238,7 @@ func (h *PackingListHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.repo.ArchivePackingList(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to archive packing list"})
+		internalError(c, "failed to archive packing list", err)
 		return
 	}
 
@@ -255,7 +255,7 @@ func (h *PackingListHandler) Unarchive(c *gin.Context) {
 	}
 
 	if err := h.repo.UnarchivePackingList(c.Request.Context(), list.ID.String()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unarchive packing list"})
+		internalError(c, "failed to unarchive packing list", err)
 		return
 	}
 
