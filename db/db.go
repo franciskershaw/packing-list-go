@@ -7,6 +7,8 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -22,16 +24,20 @@ func InitDB(databaseURL string) error {
 		return fmt.Errorf("DATABASE_URL not set")
 	}
 
-	// Open the database
-	var err error
-	DB, err = sql.Open("postgres", databaseURL)
+	// Open the database. Neon's pooled endpoint runs PgBouncer in
+	// transaction-pooling mode, which is incompatible with server-side
+	// prepared statements under concurrent queries (two requests' Parse/Bind
+	// sequences can interleave on the same backend connection — see
+	// LESSONS.md, 2026-07-25) — force the simple query protocol instead.
+	connConfig, err := pgx.ParseConfig(databaseURL)
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return fmt.Errorf("failed to parse database url: %w", err)
 	}
+	connConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	DB = stdlib.OpenDB(*connConfig)
 
 	// Test the connection
-	err = DB.Ping()
-	if err != nil {
+	if err := DB.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
