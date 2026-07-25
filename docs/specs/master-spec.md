@@ -355,6 +355,28 @@ the numbering implies an order.)*
     Console config for this ticket's manual check — not one of this
     ticket's ACs, flagged and fixed with explicit go-ahead.
 
+- **PACK-033** — System categories seed idempotency. **Priority — blocks
+  `packing-list-react`'s `PACKFE-003` (Piece 4, `ItemFormModal`).**
+  - `db/seeds/categories.sql`'s `ON CONFLICT DO NOTHING` has always been a
+    no-op — `categories.name` has no unique constraint for Postgres to
+    detect a conflict against, so re-running the seed duplicates rows.
+    The dev DB currently has zero categories seeded at all.
+  - Found 2026-07-26 during `packing-list-react` frontend work — flagged
+    as a deferred non-goal in that project's `PACKFE-003` entry
+    ("becomes its own small `packing-list-go` ticket — addressed when it
+    actually blocks building/testing against real data"). That moment
+    arrived: no category exists to assign a new item to, blocking the
+    frontend's item-creation flow end-to-end.
+  - Fix: partial unique index on `categories(name) WHERE user_id IS
+    NULL` (system rows only — doesn't touch PACK-006's existing
+    per-user uniqueness check), migration
+    `000002_categories_system_name_unique`. Seed's `ON CONFLICT` clause
+    updated to target it.
+  - Scoped to categories only — a system-items seed was also mentioned
+    in the original deferred note but isn't part of the actual blocker
+    (users create their own items regardless of pre-existing system
+    ones); left as a separate future item, not bundled in here.
+  - **Status: Done.** See `docs/handoffs/PACK-033.md`.
 - **PACK-021** — Server lifecycle hardening.
   - `http.Server` timeouts (`ReadHeaderTimeout`/`ReadTimeout`/
     `WriteTimeout`/`IdleTimeout`), graceful shutdown

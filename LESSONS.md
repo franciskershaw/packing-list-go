@@ -332,3 +332,22 @@ project kickoff.
   explicit go-ahead.
 - Mid-ticket feedback: cross-repo file-path references don't belong in Go
   code comments (fine in markdown/handoff docs) — two comments trimmed.
+
+## 2026-07-26 — PACK-033 — Categories seed idempotency shipped; clean design, environmental snag on verification
+
+- No rework on the actual fix — partial unique index
+  (`categories(name) WHERE user_id IS NULL`) plus the matching `ON
+  CONFLICT` clause worked first try (12 categories, stable across two
+  re-runs). Filed exactly per the trigger condition
+  `packing-list-react/PACKFE-003` had pre-written for it ("its own small
+  ticket — addressed when it actually blocks real data"), not invented
+  fresh.
+- The friction was environmental, not design: the handoff assumed `psql`
+  for manual verification, but the developer doesn't have it installed
+  locally. Pivoted mid-verification to Neon's web SQL Editor instead of
+  installing a client just for a one-off script.
+- **Pattern**: for this Neon-hosted project, default to Neon's web SQL
+  Editor (console.neon.tech) for any ad hoc/manual SQL (seed scripts,
+  verification queries) instead of assuming `psql` is available locally —
+  don't suggest a local client install unless there's a real recurring
+  need for one.
