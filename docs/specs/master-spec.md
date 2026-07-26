@@ -377,6 +377,29 @@ the numbering implies an order.)*
     (users create their own items regardless of pre-existing system
     ones); left as a separate future item, not bundled in here.
   - **Status: Done.** See `docs/handoffs/PACK-033.md`.
+- **PACK-034** — Template list item counts. **Priority — blocks
+  `packing-list-react`'s `PACKFE-004` (Piece 6, Templates list/rail
+  assembly).**
+  - `GetTemplates`' `scanTemplate` helper always sets `Items: []` — only
+    `GetTemplateByID` (the detail fetch) populates items, via a second
+    query. Confirmed by reading `internal/repository/template.go`'s
+    current source. Every Templates-screen screenshot shows an item
+    count on each list/rail row, so the list response needs a count
+    without needing the full item list.
+  - Found 2026-07-26 during `packing-list-react` frontend work — flagged
+    in that project's `PACKFE-004` Architecture entry as its own small
+    `packing-list-go` ticket, "landing before Piece 6 needs it, not
+    necessarily before Piece 1." That moment arrived: Piece 6 is next
+    up and has nothing real to render counts from.
+  - Fix direction (final shape TBD via this ticket's own grill-me): add
+    an `ItemCount int` field (`json:"itemCount"`) to `models.Template`.
+    `GetTemplateByID` sets it to `len(items)` once it's already fetched
+    them — free, no query change. `GetTemplates` needs a `COUNT` against
+    `template_items` per row (a `LEFT JOIN ... GROUP BY` or a correlated
+    subquery — pick during implementation) rather than a second
+    per-template round trip. No migration expected — this is query
+    logic, not a schema change.
+  - **Status: not started.**
 - **PACK-021** — Server lifecycle hardening.
   - `http.Server` timeouts (`ReadHeaderTimeout`/`ReadTimeout`/
     `WriteTimeout`/`IdleTimeout`), graceful shutdown

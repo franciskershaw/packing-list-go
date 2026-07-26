@@ -19,8 +19,12 @@ func NewTemplateRepository(db *sql.DB) *TemplateRepository {
 }
 
 func (r *TemplateRepository) GetTemplates(ctx context.Context, userID string) ([]models.Template, error) {
+	// item_count is a correlated subquery rather than scanTemplate's shared
+	// scan — no other caller's query selects this column, and a LEFT
+	// JOIN/GROUP BY would drag ORDER BY updated_at into the group-by list.
 	query := `
-		SELECT id, name, description, user_id
+		SELECT id, name, description, user_id,
+			(SELECT COUNT(*) FROM template_items WHERE template_id = templates.id) AS item_count
 		FROM templates
 		WHERE user_id = $1
 		ORDER BY updated_at DESC
@@ -33,11 +37,27 @@ func (r *TemplateRepository) GetTemplates(ctx context.Context, userID string) ([
 
 	templates := make([]models.Template, 0)
 	for rows.Next() {
-		tmpl, err := scanTemplate(rows.Scan)
-		if err != nil {
+		var (
+			id              uuid.UUID
+			name            string
+			descriptionNull sql.NullString
+			userIDScanned   uuid.UUID
+			itemCount       int
+		)
+		if err := rows.Scan(&id, &name, &descriptionNull, &userIDScanned, &itemCount); err != nil {
 			return nil, fmt.Errorf("failed to scan template: %w", err)
 		}
-		templates = append(templates, *tmpl)
+		tmpl := models.Template{
+			ID:        id,
+			Name:      name,
+			UserID:    userIDScanned,
+			Items:     []models.TemplateItem{},
+			ItemCount: itemCount,
+		}
+		if descriptionNull.Valid {
+			tmpl.Description = &descriptionNull.String
+		}
+		templates = append(templates, tmpl)
 	}
 	return templates, rows.Err()
 }
@@ -58,6 +78,7 @@ func (r *TemplateRepository) GetTemplateByID(ctx context.Context, id string) (*m
 		return nil, fmt.Errorf("failed to get template items: %w", err)
 	}
 	tmpl.Items = items
+	tmpl.ItemCount = len(items)
 
 	return tmpl, nil
 }
@@ -99,6 +120,7 @@ func (r *TemplateRepository) UpdateTemplate(ctx context.Context, id string, name
 		return nil, fmt.Errorf("failed to get template items: %w", err)
 	}
 	tmpl.Items = items
+	tmpl.ItemCount = len(items)
 
 	return tmpl, nil
 }
@@ -132,9 +154,11 @@ func (r *TemplateRepository) TemplateNameExistsForUser(ctx context.Context, user
 }
 
 // scanTemplate abstracts the nullable description scan pattern for a single
-// template row. Items is left as an empty slice — callers that need real
-// items (GetTemplateByID) populate it via a second GetTemplateItems query;
-// GetTemplates (list) intentionally leaves it empty.
+// template row (id, name, description, user_id — no item_count column;
+// GetTemplates scans that itself, see its own comment). Items/ItemCount are
+// left at their zero values — callers that need real items/counts
+// (GetTemplateByID, UpdateTemplate) populate both via a second
+// GetTemplateItems query.
 func scanTemplate(scan func(...any) error) (*models.Template, error) {
 	var (
 		id              uuid.UUID

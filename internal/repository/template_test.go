@@ -68,6 +68,27 @@ func TestGetTemplateByID_Found(t *testing.T) {
 	assert.Equal(t, name, found.Name)
 	assert.Equal(t, repoUserID, found.UserID)
 	assert.Equal(t, []models.TemplateItem{}, found.Items)
+	assert.Equal(t, 0, found.ItemCount)
+}
+
+func TestGetTemplateByID_ItemCount(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemA := createTestItem(t, catID)
+	itemB := createTestItem(t, catID)
+
+	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-getbyid-count-"+uuid.NewString(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
+	_, err = templateRepo.AddTemplateItem(ctx, created.ID.String(), itemA.String(), 1, nil)
+	require.NoError(t, err)
+	_, err = templateRepo.AddTemplateItem(ctx, created.ID.String(), itemB.String(), 1, nil)
+	require.NoError(t, err)
+
+	found, err := templateRepo.GetTemplateByID(ctx, created.ID.String())
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, 2, found.ItemCount)
 }
 
 func TestGetTemplateByID_NotFound(t *testing.T) {
@@ -103,6 +124,42 @@ func TestGetTemplates_ScopedToUser(t *testing.T) {
 	}
 	assert.True(t, foundOwn, "expected own template in results")
 	assert.False(t, foundOther, "did not expect other user's template in results")
+}
+
+func TestGetTemplates_ItemCount(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemA := createTestItem(t, catID)
+	itemB := createTestItem(t, catID)
+
+	withItems, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-withitems-"+uuid.NewString(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, withItems.ID) })
+	_, err = templateRepo.AddTemplateItem(ctx, withItems.ID.String(), itemA.String(), 1, nil)
+	require.NoError(t, err)
+	_, err = templateRepo.AddTemplateItem(ctx, withItems.ID.String(), itemB.String(), 1, nil)
+	require.NoError(t, err)
+
+	empty, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-noitems-"+uuid.NewString(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, empty.ID) })
+
+	templates, err := templateRepo.GetTemplates(ctx, repoUserID.String())
+	require.NoError(t, err)
+
+	var foundWithItems, foundEmpty bool
+	for _, tmpl := range templates {
+		if tmpl.ID == withItems.ID {
+			foundWithItems = true
+			assert.Equal(t, 2, tmpl.ItemCount)
+		}
+		if tmpl.ID == empty.ID {
+			foundEmpty = true
+			assert.Equal(t, 0, tmpl.ItemCount)
+		}
+	}
+	assert.True(t, foundWithItems, "expected template with items in results")
+	assert.True(t, foundEmpty, "expected empty template in results")
 }
 
 func TestGetTemplates_EmptyForNewUser(t *testing.T) {
@@ -229,6 +286,7 @@ func TestUpdateTemplate_PreservesItems(t *testing.T) {
 	assert.Equal(t, newName, updated.Name)
 	require.Len(t, updated.Items, 1, "expected the attached item to survive the update, not be dropped from the response")
 	assert.Equal(t, itemID, updated.Items[0].ItemID)
+	assert.Equal(t, 1, updated.ItemCount)
 }
 
 func TestDeleteTemplate(t *testing.T) {

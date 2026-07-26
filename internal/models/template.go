@@ -7,7 +7,10 @@ type Template struct {
 	Name        string         `json:"name"`
 	Description *string        `json:"description"`
 	Items       []TemplateItem `json:"items"`
-	UserID      uuid.UUID      `json:"-"`
+	// ItemCount is authoritative from GetTemplates (a COUNT query);
+	// GetTemplateByID sets it to len(Items) instead. See PACK-034.
+	ItemCount int       `json:"itemCount"`
+	UserID    uuid.UUID `json:"-"`
 }
 
 // TemplateItem represents an item attached to a template, with the quantity
