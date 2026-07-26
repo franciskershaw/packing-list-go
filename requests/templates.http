@@ -260,3 +260,94 @@ Authorization: Bearer {{$dotenv DEV_TOKEN}}
 ### 204 — delete the remaining "Beach Trip" template
 DELETE http://localhost:{{$dotenv PORT}}/templates/{{createTemplateWithDescription.response.body.id}}
 Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+
+# ══════════════════════════════════════════
+#  GET /templates — itemCount (PACK-034)
+#
+#  Self-contained setup (mirrors template_items.http's own precedent of
+#  duplicating setup rather than depending on another file).
+# ══════════════════════════════════════════
+
+### create the template item counts will be checked against
+# @name itemCountTemplate
+POST http://localhost:{{$dotenv PORT}}/templates
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "name": "Item Count Test"
+}
+
+###
+
+### create the category the item will be created under
+# @name itemCountCategory
+POST http://localhost:{{$dotenv PORT}}/categories
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "name": "Item Count Test — Category"
+}
+
+###
+
+### create an item to attach
+# @name itemCountItem
+POST http://localhost:{{$dotenv PORT}}/items
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "name": "Item Count Test — Item",
+  "categoryId": "{{itemCountCategory.response.body.id}}"
+}
+
+###
+
+### ✅ 200 — GET /templates before attaching: this template shows itemCount: 0
+GET http://localhost:{{$dotenv PORT}}/templates
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### attach the item to the template
+POST http://localhost:{{$dotenv PORT}}/templates/{{itemCountTemplate.response.body.id}}/items
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "itemId": "{{itemCountItem.response.body.id}}"
+}
+
+###
+
+### ✅ 200 — GET /templates after attaching: find "Item Count Test" in the
+#          array and confirm itemCount: 1 (list endpoint — the COUNT query)
+GET http://localhost:{{$dotenv PORT}}/templates
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### ✅ 200 — GET /templates/:id also shows itemCount: 1 (detail endpoint —
+#          derived from len(items), not the COUNT query)
+GET http://localhost:{{$dotenv PORT}}/templates/{{itemCountTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+### cleanup — delete this section's template, item, and category (in that
+#          order — a category with items in it 409s on delete)
+DELETE http://localhost:{{$dotenv PORT}}/templates/{{itemCountTemplate.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+DELETE http://localhost:{{$dotenv PORT}}/items/{{itemCountItem.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+###
+
+DELETE http://localhost:{{$dotenv PORT}}/categories/{{itemCountCategory.response.body.id}}
+Authorization: Bearer {{$dotenv DEV_TOKEN}}

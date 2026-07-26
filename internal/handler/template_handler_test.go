@@ -117,6 +117,23 @@ func TestTemplateList_HappyPath(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+func TestTemplateList_IncludesItemCount(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	tmpl := ownedTemplate()
+	tmpl.ItemCount = 3
+	repo.On("GetTemplates", mock.Anything, testTemplateUserID).Return([]models.Template{*tmpl}, nil)
+
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodGet, "/templates", nil, testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, float64(3), body[0]["itemCount"])
+	repo.AssertExpectations(t)
+}
+
 func TestTemplateList_EmptyResult(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	repo.On("GetTemplates", mock.Anything, testTemplateUserID).Return([]models.Template{}, nil)
@@ -243,6 +260,23 @@ func TestTemplateGetByID_Valid(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "My Template", body["name"])
 	assert.Equal(t, []any{}, body["items"])
+	repo.AssertExpectations(t)
+}
+
+func TestTemplateGetByID_IncludesItemCount(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	tmpl := ownedTemplate()
+	tmpl.ItemCount = 2
+	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
+
+	r := newTemplateTestRouter(repo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodGet, "/templates/"+testTemplateID, nil, testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, float64(2), body["itemCount"])
 	repo.AssertExpectations(t)
 }
 

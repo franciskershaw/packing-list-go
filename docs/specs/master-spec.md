@@ -399,7 +399,36 @@ the numbering implies an order.)*
     subquery — pick during implementation) rather than a second
     per-template round trip. No migration expected — this is query
     logic, not a schema change.
-  - **Status: not started.**
+  - Grilled 2026-07-26. New pattern, no ADR (judged small enough for the
+    handoff doc to carry — see `docs/handoffs/PACK-034.md`): no existing
+    repository method anywhere in this codebase populated a
+    computed/aggregate field before this. `ItemCount` landed on the
+    shared `models.Template` struct (not a separate list-only type —
+    unlike `PackingList`/`PackingListDetail`'s split, this is one field,
+    not a genuinely different shape). `GetTemplates` uses a correlated
+    `COUNT` subquery, not a `LEFT JOIN`/`GROUP BY`. `scanTemplate` stays
+    untouched; `GetTemplates` got its own bespoke scan for the extra
+    column.
+  - **Found during implementation, beyond the handoff doc's original
+    scope**: `UpdateTemplate` already fetches items via
+    `GetTemplateItems` (missed when the handoff doc said its `ItemCount`
+    "may be stale/0, which is fine") — since it's free and already has
+    the data, `ItemCount = len(items)` was set there too, with a new
+    assertion added to the existing `TestUpdateTemplate_PreservesItems`
+    to cover it (nothing tested that path before).
+  - Repository layer implemented and committed first (own review pause),
+    per this project's layer-by-layer rule, before the handler layer.
+    Handler layer needed no code changes — pure JSON pass-through — just
+    two new tests (`TestTemplateList_IncludesItemCount`,
+    `TestTemplateGetByID_IncludesItemCount`) locking in the wire
+    contract.
+  - Manual verification: `requests/templates.http` extended with a
+    self-contained itemCount section (own setup/cleanup, mirroring
+    `template_items.http`'s precedent). Verified live against a running
+    server (curl, equivalent to the `.http` file) — `itemCount: 0` before
+    attaching an item, `1` on both `GET /templates` (the `COUNT` query)
+    and `GET /templates/:id` (`len(items)`) after, cleanup all 204s.
+  - **Status: Done.** See `docs/handoffs/PACK-034.md`.
 - **PACK-021** — Server lifecycle hardening.
   - `http.Server` timeouts (`ReadHeaderTimeout`/`ReadTimeout`/
     `WriteTimeout`/`IdleTimeout`), graceful shutdown
