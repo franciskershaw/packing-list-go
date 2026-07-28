@@ -94,6 +94,11 @@ func (m *MockPackingListRepository) UpdatePackingListItem(ctx context.Context, l
 	return args.Get(0).(*models.PackingListItem), args.Error(1)
 }
 
+func (m *MockPackingListRepository) BulkUpdatePackingListItems(ctx context.Context, listID string, changes map[string]int) error {
+	args := m.Called(ctx, listID, changes)
+	return args.Error(0)
+}
+
 func (m *MockPackingListRepository) RemovePackingListItem(ctx context.Context, listID, itemID string) error {
 	args := m.Called(ctx, listID, itemID)
 	return args.Error(0)
@@ -138,7 +143,7 @@ func newPackingListTestRouter(repo handler.PackingListRepository, templateRepo h
 	authed.POST("/lists/:id/items", h.AddItem)
 	authed.PATCH("/lists/:id/items/:itemId", h.UpdateItem)
 	authed.DELETE("/lists/:id/items/:itemId", h.RemoveItem)
-	authed.POST("/lists/:id/items/bulk", h.BulkAddItems)
+	authed.PATCH("/lists/:id/items/bulk", h.BulkUpdateItems)
 	authed.POST("/lists/:id/pack-all", h.PackAll)
 	authed.POST("/lists/:id/unpack-all", h.UnpackAll)
 	return r

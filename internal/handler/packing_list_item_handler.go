@@ -215,55 +215,14 @@ func (h *PackingListHandler) RemoveItem(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// BulkAddItems handles POST /lists/:id/items/bulk — adds every item from
-// categoryId, silently skipping ones already on the list. Every added item
-// defaults quantity: 1, notes: nil, sortOrder: nil — no per-item overrides.
-func (h *PackingListHandler) BulkAddItems(c *gin.Context) {
-	list, userID, ok := h.requireOwnedPackingList(c)
+// BulkUpdateItems handles PATCH /lists/:id/items/bulk — a delta of
+// itemId -> quantity changes, applied atomically. quantity 0 removes an
+// item (no-op if already absent); any other quantity in [0, 999] adds the
+// item if absent or updates it if present. See PACK-035.
+func (h *PackingListHandler) BulkUpdateItems(c *gin.Context) {
+	_, _, ok := h.requireOwnedPackingList(c)
 	if !ok {
 		return
 	}
-	listID := list.ID.String()
-
-	var req struct {
-		CategoryID string `json:"categoryId"`
-	}
-	if !bindJSON(c, &req) {
-		return
-	}
-
-	if !validateAccessibleCategory(c, h.itemRepo, req.CategoryID, userID) {
-		return
-	}
-
-	categoryItems, err := h.itemRepo.GetItems(c.Request.Context(), userID, &req.CategoryID, nil)
-	if err != nil {
-		internalError(c, "failed to fetch category items", err)
-		return
-	}
-
-	existing, err := h.repo.GetPackingListItems(c.Request.Context(), listID)
-	if err != nil {
-		internalError(c, "failed to fetch packing list items", err)
-		return
-	}
-	alreadyOnList := make(map[uuid.UUID]bool, len(existing))
-	for _, item := range existing {
-		alreadyOnList[item.ItemID] = true
-	}
-
-	added := make([]models.PackingListItem, 0)
-	for _, item := range categoryItems {
-		if alreadyOnList[item.ID] {
-			continue
-		}
-		created, err := h.repo.AddPackingListItem(c.Request.Context(), listID, item.ID.String(), 1, nil)
-		if err != nil {
-			internalError(c, "failed to add packing list item", err)
-			return
-		}
-		added = append(added, *created)
-	}
-
-	c.JSON(http.StatusCreated, added)
+	c.Status(http.StatusNotImplemented)
 }

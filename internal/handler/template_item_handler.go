@@ -204,54 +204,16 @@ func (h *TemplateHandler) RemoveItem(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *TemplateHandler) BulkAddItems(c *gin.Context) {
-	template, userID, ok := h.requireOwnedTemplate(c)
+// BulkUpdateItems handles PATCH /templates/:id/items/bulk — a delta of
+// itemId -> quantity changes, applied atomically. quantity 0 removes an
+// item (no-op if already absent); any other quantity in [0, 999] adds the
+// item if absent or updates it if present. See PACK-035.
+func (h *TemplateHandler) BulkUpdateItems(c *gin.Context) {
+	_, _, ok := h.requireOwnedTemplate(c)
 	if !ok {
 		return
 	}
-	templateID := template.ID.String()
-
-	var req struct {
-		CategoryID string `json:"categoryId"`
-	}
-	if !bindJSON(c, &req) {
-		return
-	}
-
-	if !validateAccessibleCategory(c, h.itemRepo, req.CategoryID, userID) {
-		return
-	}
-
-	categoryItems, err := h.itemRepo.GetItems(c.Request.Context(), userID, &req.CategoryID, nil)
-	if err != nil {
-		internalError(c, "failed to fetch category items", err)
-		return
-	}
-
-	existing, err := h.repo.GetTemplateItems(c.Request.Context(), templateID)
-	if err != nil {
-		internalError(c, "failed to fetch template items", err)
-		return
-	}
-	alreadyOnTemplate := make(map[uuid.UUID]bool, len(existing))
-	for _, item := range existing {
-		alreadyOnTemplate[item.ItemID] = true
-	}
-
-	added := make([]models.TemplateItem, 0)
-	for _, item := range categoryItems {
-		if alreadyOnTemplate[item.ID] {
-			continue
-		}
-		created, err := h.repo.AddTemplateItem(c.Request.Context(), templateID, item.ID.String(), 1, nil)
-		if err != nil {
-			internalError(c, "failed to add template item", err)
-			return
-		}
-		added = append(added, *created)
-	}
-
-	c.JSON(http.StatusCreated, added)
+	c.Status(http.StatusNotImplemented)
 }
 
 // validateQuantity validates a template item quantity is in [1, 999],

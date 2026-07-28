@@ -19,6 +19,7 @@ type PackingListRepository interface {
 	UnarchivePackingList(ctx context.Context, id string) error
 	AddPackingListItem(ctx context.Context, listID, itemID string, quantity int, notes *string) (*models.PackingListItem, error)
 	UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error)
+	BulkUpdatePackingListItems(ctx context.Context, listID string, changes map[string]int) error
 	RemovePackingListItem(ctx context.Context, listID, itemID string) error
 	PackingListItemExists(ctx context.Context, listID, itemID string) (bool, error)
 	GetPackingListItems(ctx context.Context, listID string) ([]models.PackingListItem, error)

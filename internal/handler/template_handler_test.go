@@ -84,7 +84,7 @@ func newTemplateTestRouter(repo handler.TemplateRepository, itemRepo handler.Ite
 	authed.POST("/templates/:id/items", h.AddItem)
 	authed.PATCH("/templates/:id/items/:itemId", h.UpdateItem)
 	authed.DELETE("/templates/:id/items/:itemId", h.RemoveItem)
-	authed.POST("/templates/:id/items/bulk", h.BulkAddItems)
+	authed.PATCH("/templates/:id/items/bulk", h.BulkUpdateItems)
 	return r
 }
 

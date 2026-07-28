@@ -98,7 +98,7 @@ func main() {
 		authed.POST("/templates/:id/items", templateHandler.AddItem)
 		authed.PATCH("/templates/:id/items/:itemId", templateHandler.UpdateItem)
 		authed.DELETE("/templates/:id/items/:itemId", templateHandler.RemoveItem)
-		authed.POST("/templates/:id/items/bulk", templateHandler.BulkAddItems)
+		authed.PATCH("/templates/:id/items/bulk", templateHandler.BulkUpdateItems)
 
 		authed.POST("/lists", packingListHandler.Create)
 		authed.GET("/lists", packingListHandler.List)
@@ -109,7 +109,7 @@ func main() {
 		authed.POST("/lists/:id/items", packingListHandler.AddItem)
 		authed.PATCH("/lists/:id/items/:itemId", packingListHandler.UpdateItem)
 		authed.DELETE("/lists/:id/items/:itemId", packingListHandler.RemoveItem)
-		authed.POST("/lists/:id/items/bulk", packingListHandler.BulkAddItems)
+		authed.PATCH("/lists/:id/items/bulk", packingListHandler.BulkUpdateItems)
 		authed.POST("/lists/:id/pack-all", packingListHandler.PackAll)
 		authed.POST("/lists/:id/unpack-all", packingListHandler.UnpackAll)
 	}

@@ -40,6 +40,11 @@ func (m *MockTemplateRepository) UpdateTemplateItem(ctx context.Context, templat
 	return args.Get(0).(*models.TemplateItem), args.Error(1)
 }
 
+func (m *MockTemplateRepository) BulkUpdateTemplateItems(ctx context.Context, templateID string, changes map[string]int) error {
+	args := m.Called(ctx, templateID, changes)
+	return args.Error(0)
+}
+
 func (m *MockTemplateRepository) RemoveTemplateItem(ctx context.Context, templateID, itemID string) error {
 	args := m.Called(ctx, templateID, itemID)
 	return args.Error(0)
@@ -547,79 +552,58 @@ func TestTemplateItemRemove_Unauthorized(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// --- POST /templates/:id/items/bulk ---
+// --- PATCH /templates/:id/items/bulk ---
+// Delta contract (PACK-035): quantity 0 removes, any other quantity in
+// [0, 999] adds-if-absent-or-updates-if-present. Existence branching
+// happens entirely inside BulkUpdateTemplateItems (repo layer, see
+// TestBulkUpdateTemplateItems_AddsUpdatesAndRemoves) — the handler only
+// validates the request shape and item accessibility, then forwards the
+// whole changes map in one call. Mirrors packing_list_item_handler_test.go's
+// equivalent block; no "NotOwned" case here, matching this file's existing
+// precedent of only testing TemplateNotFound (isTemplateOwned folds into
+// the same 404 as not-found).
 
-func TestTemplateItemBulkAdd_SomeSkipped(t *testing.T) {
+func TestTemplateItemBulkUpdate_MixedBatchSucceeds(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	tmpl := ownedTemplate()
-	categoryItems := []models.Item{*tmplAccessibleItem(testTemplateItemItemID), *tmplAccessibleItem(testTemplateItemItem2)}
-	existing := []models.TemplateItem{*templateItem(testTemplateItemItemID, 1, nil)}
-	added := templateItem(testTemplateItemItem2, 1, nil)
+	batchItems := []models.Item{*tmplAccessibleItem(testTemplateItemItemID), *tmplAccessibleItem(testTemplateItemItem2)}
 
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testBulkCategoryID, testTemplateUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testTemplateUserID, &testBulkCategoryIDCopy, (*string)(nil)).Return(categoryItems, nil)
-	repo.On("GetTemplateItems", mock.Anything, testTemplateID).Return(existing, nil)
-	repo.On("AddTemplateItem", mock.Anything, testTemplateID, testTemplateItemItem2, 1, (*string)(nil)).Return(added, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testTemplateItemItemID, testTemplateItemItem2}).Return(batchItems, nil)
+	repo.On("BulkUpdateTemplateItems", mock.Anything, testTemplateID, map[string]int{testTemplateItemItemID: 5, testTemplateItemItem2: 0}).Return(nil)
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{
+		{"itemId": testTemplateItemItemID, "quantity": 5},
+		{"itemId": testTemplateItemItem2, "quantity": 0},
+	}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
-	assert.Equal(t, http.StatusCreated, w.Code)
-	var body []map[string]any
-	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Len(t, body, 1)
-	assert.Equal(t, testTemplateItemItem2, body[0]["itemId"])
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	repo.AssertExpectations(t)
 	itemRepo.AssertExpectations(t)
 }
 
-func TestTemplateItemBulkAdd_NoneSkipped(t *testing.T) {
+func TestTemplateItemBulkUpdate_NoopRemoveOfAbsentItem(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	tmpl := ownedTemplate()
-	categoryItems := []models.Item{*tmplAccessibleItem(testTemplateItemItemID)}
-	added := templateItem(testTemplateItemItemID, 1, nil)
+	batchItems := []models.Item{*tmplAccessibleItem(testTemplateItemItemID)}
 
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testBulkCategoryID, testTemplateUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testTemplateUserID, &testBulkCategoryIDCopy, (*string)(nil)).Return(categoryItems, nil)
-	repo.On("GetTemplateItems", mock.Anything, testTemplateID).Return([]models.TemplateItem{}, nil)
-	repo.On("AddTemplateItem", mock.Anything, testTemplateID, testTemplateItemItemID, 1, (*string)(nil)).Return(added, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testTemplateItemItemID}).Return(batchItems, nil)
+	repo.On("BulkUpdateTemplateItems", mock.Anything, testTemplateID, map[string]int{testTemplateItemItemID: 0}).Return(nil)
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 0}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
-	assert.Equal(t, http.StatusCreated, w.Code)
-	var body []map[string]any
-	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Len(t, body, 1)
+	assert.Equal(t, http.StatusNoContent, w.Code, "quantity 0 must pass handler validation, not be rejected as out of range")
 	repo.AssertExpectations(t)
 }
 
-func TestTemplateItemBulkAdd_EmptyCategory(t *testing.T) {
-	repo := &MockTemplateRepository{}
-	itemRepo := &MockItemRepository{}
-	tmpl := ownedTemplate()
-
-	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testBulkCategoryID, testTemplateUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testTemplateUserID, &testBulkCategoryIDCopy, (*string)(nil)).Return([]models.Item{}, nil)
-	repo.On("GetTemplateItems", mock.Anything, testTemplateID).Return([]models.TemplateItem{}, nil)
-
-	r := newTemplateTestRouter(repo, itemRepo)
-
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, "[]", w.Body.String())
-	repo.AssertExpectations(t)
-}
-
-func TestTemplateItemBulkAdd_MissingCategoryID(t *testing.T) {
+func TestTemplateItemBulkUpdate_EmptyArray(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	tmpl := ownedTemplate()
@@ -627,12 +611,12 @@ func TestTemplateItemBulkAdd_MissingCategoryID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestTemplateItemBulkAdd_InvalidCategoryID(t *testing.T) {
+func TestTemplateItemBulkUpdate_DuplicateItemId(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	tmpl := ownedTemplate()
@@ -640,48 +624,123 @@ func TestTemplateItemBulkAdd_InvalidCategoryID(t *testing.T) {
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": "not-a-uuid"}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{
+		{"itemId": testTemplateItemItemID, "quantity": 1},
+		{"itemId": testTemplateItemItemID, "quantity": 2},
+	}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestTemplateItemBulkAdd_InaccessibleCategoryID(t *testing.T) {
+func TestTemplateItemBulkUpdate_InvalidItemId(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	tmpl := ownedTemplate()
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testBulkCategoryID, testTemplateUserID).Return(false, nil)
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": "not-a-uuid", "quantity": 1}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	repo.AssertExpectations(t)
+}
+
+func TestTemplateItemBulkUpdate_QuantityTooLow(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	itemRepo := &MockItemRepository{}
+	tmpl := ownedTemplate()
+	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
+
+	r := newTemplateTestRouter(repo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": -1}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestTemplateItemBulkUpdate_QuantityTooHigh(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	itemRepo := &MockItemRepository{}
+	tmpl := ownedTemplate()
+	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
+
+	r := newTemplateTestRouter(repo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 1000}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestTemplateItemBulkUpdate_InaccessibleItem(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	itemRepo := &MockItemRepository{}
+	tmpl := ownedTemplate()
+	batchItems := []models.Item{*tmplOtherUsersItem(testTemplateItemItemID)}
+
+	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testTemplateItemItemID}).Return(batchItems, nil)
+
+	r := newTemplateTestRouter(repo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 1}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 	itemRepo.AssertExpectations(t)
 }
 
-func TestTemplateItemBulkAdd_TemplateNotFound(t *testing.T) {
+func TestTemplateItemBulkUpdate_UnknownItemId(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	itemRepo := &MockItemRepository{}
+	tmpl := ownedTemplate()
+
+	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testTemplateItemItemID}).Return([]models.Item{}, nil)
+
+	r := newTemplateTestRouter(repo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 1}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	itemRepo.AssertExpectations(t)
+}
+
+func TestTemplateItemBulkUpdate_RepoErrorReturns500(t *testing.T) {
+	repo := &MockTemplateRepository{}
+	itemRepo := &MockItemRepository{}
+	tmpl := ownedTemplate()
+	batchItems := []models.Item{*tmplAccessibleItem(testTemplateItemItemID)}
+
+	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(tmpl, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testTemplateItemItemID}).Return(batchItems, nil)
+	repo.On("BulkUpdateTemplateItems", mock.Anything, testTemplateID, map[string]int{testTemplateItemItemID: 3}).Return(assert.AnError)
+
+	r := newTemplateTestRouter(repo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 3}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestTemplateItemBulkUpdate_TemplateNotFound(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	repo.On("GetTemplateByID", mock.Anything, testTemplateID).Return(nil, nil)
 
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 1}}}), testutil.AuthHeader(t, "test@example.com", testTemplateUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
 }
 
-func TestTemplateItemBulkAdd_Unauthorized(t *testing.T) {
+func TestTemplateItemBulkUpdate_Unauthorized(t *testing.T) {
 	repo := &MockTemplateRepository{}
 	itemRepo := &MockItemRepository{}
 	r := newTemplateTestRouter(repo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"categoryId": testBulkCategoryID}), "")
+	w := doRequest(t, r, http.MethodPatch, "/templates/"+testTemplateID+"/items/bulk", jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testTemplateItemItemID, "quantity": 1}}}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
-
-var testBulkCategoryIDCopy = testBulkCategoryID

@@ -10,16 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 const (
 	testPackingListItemID2 = "aaaaaaaa-1111-1111-1111-111111111111"
 )
-
-// testPackingListCategoryIDCopy exists so mock.On can take its address —
-// the const itself isn't addressable.
-var testPackingListCategoryIDCopy = testPackingListCategoryID
 
 // --- Fixtures ---
 // (mirrors template_item_handler_test.go's tmplAccessibleItem/tmplSystemItem/
@@ -708,88 +703,62 @@ func TestPackingListItemRemove_SucceedsOnArchivedList(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
-// --- POST /lists/:id/items/bulk ---
+// --- PATCH /lists/:id/items/bulk ---
+// Delta contract (PACK-035): quantity 0 removes, any other quantity in
+// [0, 999] adds-if-absent-or-updates-if-present. Existence branching
+// happens entirely inside BulkUpdatePackingListItems (repo layer, see
+// TestBulkUpdatePackingListItems_AddsUpdatesAndRemoves) — the handler
+// only validates the request shape and item accessibility, then forwards
+// the whole changes map in one call, so there's no separate "add" vs
+// "update" path to test here.
 
-func TestPackingListItemBulkAdd_SomeSkipped(t *testing.T) {
+func TestPackingListItemBulkUpdate_MixedBatchSucceeds(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
 	list := packingListDetail(testPackingListUserID, nil)
-	categoryItems := []models.Item{*pliAccessibleItem(testPackingListItemID), *pliAccessibleItem(testPackingListItemID2)}
-	existing := []models.PackingListItem{*packingListItem(testPackingListItemID, 1, nil, nil)}
-	added := packingListItem(testPackingListItemID2, 1, nil, nil)
+	batchItems := []models.Item{*pliAccessibleItem(testPackingListItemID), *pliAccessibleItem(testPackingListItemID2)}
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testPackingListCategoryID, testPackingListUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testPackingListUserID, &testPackingListCategoryIDCopy, (*string)(nil)).Return(categoryItems, nil)
-	repo.On("GetPackingListItems", mock.Anything, testPackingListID).Return(existing, nil)
-	repo.On("AddPackingListItem", mock.Anything, testPackingListID, testPackingListItemID2, 1, (*string)(nil)).Return(added, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testPackingListItemID, testPackingListItemID2}).Return(batchItems, nil)
+	repo.On("BulkUpdatePackingListItems", mock.Anything, testPackingListID, map[string]int{testPackingListItemID: 5, testPackingListItemID2: 0}).Return(nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{
+			{"itemId": testPackingListItemID, "quantity": 5},
+			{"itemId": testPackingListItemID2, "quantity": 0},
+		}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
-	assert.Equal(t, http.StatusCreated, w.Code)
-	var body []map[string]any
-	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	require.Len(t, body, 1)
-	assert.Equal(t, testPackingListItemID2, body[0]["itemId"])
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	repo.AssertExpectations(t)
 	itemRepo.AssertExpectations(t)
 }
 
-func TestPackingListItemBulkAdd_NoneSkipped(t *testing.T) {
+func TestPackingListItemBulkUpdate_NoopRemoveOfAbsentItem(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
 	list := packingListDetail(testPackingListUserID, nil)
-	categoryItems := []models.Item{*pliAccessibleItem(testPackingListItemID)}
-	added := packingListItem(testPackingListItemID, 1, nil, nil)
+	batchItems := []models.Item{*pliAccessibleItem(testPackingListItemID)}
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testPackingListCategoryID, testPackingListUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testPackingListUserID, &testPackingListCategoryIDCopy, (*string)(nil)).Return(categoryItems, nil)
-	repo.On("GetPackingListItems", mock.Anything, testPackingListID).Return([]models.PackingListItem{}, nil)
-	repo.On("AddPackingListItem", mock.Anything, testPackingListID, testPackingListItemID, 1, (*string)(nil)).Return(added, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testPackingListItemID}).Return(batchItems, nil)
+	repo.On("BulkUpdatePackingListItems", mock.Anything, testPackingListID, map[string]int{testPackingListItemID: 0}).Return(nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 0}}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
-	assert.Equal(t, http.StatusCreated, w.Code)
-	var body []map[string]any
-	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Len(t, body, 1)
+	assert.Equal(t, http.StatusNoContent, w.Code, "quantity 0 must pass handler validation, not be rejected as out of range")
 	repo.AssertExpectations(t)
 }
 
-func TestPackingListItemBulkAdd_EmptyCategory(t *testing.T) {
-	repo := &MockPackingListRepository{}
-	itemRepo := &MockItemRepository{}
-	templateRepo := &MockTemplateRepository{}
-	list := packingListDetail(testPackingListUserID, nil)
-
-	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testPackingListCategoryID, testPackingListUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testPackingListUserID, &testPackingListCategoryIDCopy, (*string)(nil)).Return([]models.Item{}, nil)
-	repo.On("GetPackingListItems", mock.Anything, testPackingListID).Return([]models.PackingListItem{}, nil)
-
-	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
-
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
-		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, "[]", w.Body.String())
-	repo.AssertExpectations(t)
-}
-
-func TestPackingListItemBulkAdd_MissingCategoryID(t *testing.T) {
+func TestPackingListItemBulkUpdate_EmptyArray(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
@@ -798,14 +767,14 @@ func TestPackingListItemBulkAdd_MissingCategoryID(t *testing.T) {
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestPackingListItemBulkAdd_InvalidCategoryID(t *testing.T) {
+func TestPackingListItemBulkUpdate_DuplicateItemId(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
@@ -814,33 +783,125 @@ func TestPackingListItemBulkAdd_InvalidCategoryID(t *testing.T) {
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": "not-a-uuid"}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{
+			{"itemId": testPackingListItemID, "quantity": 1},
+			{"itemId": testPackingListItemID, "quantity": 2},
+		}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestPackingListItemBulkAdd_InaccessibleCategoryID(t *testing.T) {
+func TestPackingListItemBulkUpdate_InvalidItemId(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
 	list := packingListDetail(testPackingListUserID, nil)
-
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testPackingListCategoryID, testPackingListUserID).Return(false, nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": "not-a-uuid", "quantity": 1}}}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPackingListItemBulkUpdate_QuantityTooLow(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": -1}}}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPackingListItemBulkUpdate_QuantityTooHigh(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1000}}}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPackingListItemBulkUpdate_InaccessibleItem(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	batchItems := []models.Item{*pliOtherUsersItem(testPackingListItemID)}
+
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testPackingListItemID}).Return(batchItems, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	itemRepo.AssertExpectations(t)
 }
 
-func TestPackingListItemBulkAdd_ListNotOwned(t *testing.T) {
+func TestPackingListItemBulkUpdate_UnknownItemId(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testPackingListItemID}).Return([]models.Item{}, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	itemRepo.AssertExpectations(t)
+}
+
+func TestPackingListItemBulkUpdate_RepoErrorReturns500(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	itemRepo := &MockItemRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListDetail(testPackingListUserID, nil)
+	batchItems := []models.Item{*pliAccessibleItem(testPackingListItemID)}
+
+	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testPackingListItemID}).Return(batchItems, nil)
+	repo.On("BulkUpdatePackingListItems", mock.Anything, testPackingListID, map[string]int{testPackingListItemID: 3}).Return(assert.AnError)
+
+	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
+
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 3}}}),
+		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	repo.AssertExpectations(t)
+}
+
+func TestPackingListItemBulkUpdate_ListNotOwned(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
@@ -849,14 +910,14 @@ func TestPackingListItemBulkAdd_ListNotOwned(t *testing.T) {
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestPackingListItemBulkAdd_ListNotFound(t *testing.T) {
+func TestPackingListItemBulkUpdate_ListNotFound(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
@@ -864,60 +925,57 @@ func TestPackingListItemBulkAdd_ListNotFound(t *testing.T) {
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestPackingListItemBulkAdd_InvalidListID(t *testing.T) {
+func TestPackingListItemBulkUpdate_InvalidListID(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/not-a-uuid/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/not-a-uuid/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestPackingListItemBulkAdd_Unauthorized(t *testing.T) {
+func TestPackingListItemBulkUpdate_Unauthorized(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}), "")
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}), "")
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestPackingListItemBulkAdd_SucceedsOnArchivedList(t *testing.T) {
+func TestPackingListItemBulkUpdate_SucceedsOnArchivedList(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	itemRepo := &MockItemRepository{}
 	templateRepo := &MockTemplateRepository{}
 	list := packingListDetail(testPackingListUserID, nil)
-	categoryItems := []models.Item{*pliAccessibleItem(testPackingListItemID)}
-	added := packingListItem(testPackingListItemID, 1, nil, nil)
+	batchItems := []models.Item{*pliAccessibleItem(testPackingListItemID)}
 
 	repo.On("GetPackingListByID", mock.Anything, testPackingListID).Return(list, nil)
-	itemRepo.On("CategoryIsAccessible", mock.Anything, testPackingListCategoryID, testPackingListUserID).Return(true, nil)
-	itemRepo.On("GetItems", mock.Anything, testPackingListUserID, &testPackingListCategoryIDCopy, (*string)(nil)).Return(categoryItems, nil)
-	repo.On("GetPackingListItems", mock.Anything, testPackingListID).Return([]models.PackingListItem{}, nil)
-	repo.On("AddPackingListItem", mock.Anything, testPackingListID, testPackingListItemID, 1, (*string)(nil)).Return(added, nil)
+	itemRepo.On("GetItemsByIDs", mock.Anything, []string{testPackingListItemID}).Return(batchItems, nil)
+	repo.On("BulkUpdatePackingListItems", mock.Anything, testPackingListID, map[string]int{testPackingListItemID: 1}).Return(nil)
 
 	r := newPackingListTestRouter(repo, templateRepo, itemRepo)
 
-	w := doRequest(t, r, http.MethodPost, "/lists/"+testPackingListID+"/items/bulk",
-		jsonBody(t, map[string]any{"categoryId": testPackingListCategoryID}),
+	w := doRequest(t, r, http.MethodPatch, "/lists/"+testPackingListID+"/items/bulk",
+		jsonBody(t, map[string]any{"items": []map[string]any{{"itemId": testPackingListItemID, "quantity": 1}}}),
 		testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
 
-	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	repo.AssertExpectations(t)
 }

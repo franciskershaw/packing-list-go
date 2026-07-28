@@ -41,6 +41,14 @@ func (m *MockItemRepository) GetItems(ctx context.Context, userID string, catego
 	return args.Get(0).([]models.Item), args.Error(1)
 }
 
+func (m *MockItemRepository) GetItemsByIDs(ctx context.Context, ids []string) ([]models.Item, error) {
+	args := m.Called(ctx, ids)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.Item), args.Error(1)
+}
+
 func (m *MockItemRepository) GetItemByID(ctx context.Context, id string) (*models.Item, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {

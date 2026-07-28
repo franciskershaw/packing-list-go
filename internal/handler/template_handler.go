@@ -18,6 +18,7 @@ type TemplateRepository interface {
 	TemplateNameExistsForUser(ctx context.Context, userID, name string, excludeID *string) (bool, error)
 	AddTemplateItem(ctx context.Context, templateID, itemID string, quantity int, notes *string) (*models.TemplateItem, error)
 	UpdateTemplateItem(ctx context.Context, templateID, itemID string, quantity *int, notes *string) (*models.TemplateItem, error)
+	BulkUpdateTemplateItems(ctx context.Context, templateID string, changes map[string]int) error
 	RemoveTemplateItem(ctx context.Context, templateID, itemID string) error
 	TemplateItemExists(ctx context.Context, templateID, itemID string) (bool, error)
 	GetTemplateItems(ctx context.Context, templateID string) ([]models.TemplateItem, error)
@@ -31,6 +32,7 @@ type TemplateRepository interface {
 type ItemLookupRepository interface {
 	GetItemByID(ctx context.Context, id string) (*models.Item, error)
 	GetItems(ctx context.Context, userID string, categoryID *string, search *string) ([]models.Item, error)
+	GetItemsByIDs(ctx context.Context, ids []string) ([]models.Item, error)
 	CategoryIsAccessible(ctx context.Context, categoryID, userID string) (bool, error)
 }
 
