@@ -252,3 +252,7 @@ new-pattern findings.
   cases (empty array, duplicate itemId, out-of-range quantity).
 - `requests/template_items.http` — same replacement for the
   `POST /templates/:id/items/bulk` section (lines ~278-337).
+
+## Close-out
+
+Completed 2026-07-28. Retro entry in LESSONS.md.

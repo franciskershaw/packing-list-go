@@ -498,4 +498,4 @@ the numbering implies an order.)*
     ~30 items from a category means ~30 HTTP requests.
   - Supersedes PACK-028's "non-transactional `BulkAddItems`" finding (see
     note on PACK-028 above).
-  - **Status: not started.** See `docs/handoffs/PACK-035.md`.
+  - **Status: Done.** See `docs/handoffs/PACK-035.md`.

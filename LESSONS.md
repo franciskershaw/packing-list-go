@@ -351,3 +351,32 @@ project kickoff.
   verification queries) instead of assuming `psql` is available locally —
   don't suggest a local client install unless there's a real recurring
   need for one.
+
+## 2026-07-28 — PACK-035 — Delta bulk-update endpoint shipped clean; one real catch during handoff review
+
+- No rework once the design was locked — both layers (repo, then handler)
+  went red-then-green on the first real implementation pass.
+- The handoff doc initially cited frontend files from a redesign session
+  that had since been reverted without committing. Reviewing those
+  citations for staleness surfaced more than staleness: the claim that
+  neither old bulk-add endpoint had a real frontend caller was factually
+  wrong for the template side (`useBulkAddItems` was live) — caught before
+  implementation, turning "pure cleanup" into one deliberate, documented
+  breaking change instead of a silent regression.
+- **Pattern**: when a design decision leans on "X has no real caller" or
+  similar codebase-state claims, re-verify each one independently rather
+  than generalizing from a sibling case (list vs. template here looked
+  identical but weren't) — especially after any handoff-doc edit that
+  touches those citations.
+- Both layers' tests included a case (repo-layer rollback, handler-layer
+  ownership guards) that passed against a do-nothing stub, not because the
+  test was wrong but because atomicity/shared-guard behavior is
+  inherently indistinguishable from "not implemented yet" until real logic
+  exists to regress. Flagged transparently both times rather than treated
+  as a false green — worth recognizing on sight next time so it doesn't
+  read as a mistake.
+- Environmental noise at sign-off: Go's test cache made a real pass look
+  suspiciously instant (`-count=1` fixed it), then one genuine transient
+  Neon connection blip on the next fresh run, resolved on retry — neither
+  related to the actual change.
+- Demotion check: skipped — Epic 7 still has open tickets, not a boundary.
