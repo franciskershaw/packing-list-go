@@ -27,6 +27,13 @@ func (r *TemplateRepository) AddTemplateItem(ctx context.Context, templateID, it
 	return templateItem, nil
 }
 
+// BulkUpdateTemplateItems applies a delta of itemID -> quantity changes to
+// templateID atomically: quantity 0 removes an item (no-op if already
+// absent), any other quantity adds it if absent or updates it if present.
+func (r *TemplateRepository) BulkUpdateTemplateItems(ctx context.Context, templateID string, changes map[string]int) error {
+	return fmt.Errorf("not implemented")
+}
+
 // UpdateTemplateItem updates quantity and/or notes. A nil quantity or notes
 // means "leave unchanged"; an empty-string notes clears it to "" (not NULL).
 func (r *TemplateRepository) UpdateTemplateItem(ctx context.Context, templateID, itemID string, quantity *int, notes *string) (*models.TemplateItem, error) {

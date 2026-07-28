@@ -44,6 +44,13 @@ func (r *ItemRepository) GetItems(ctx context.Context, userID string, categoryID
 	return items, rows.Err()
 }
 
+// GetItemsByIDs returns every item matching ids, in no particular order.
+// Unknown IDs are silently omitted, not errored — mirrors GetItemByID's
+// not-found-is-nil convention rather than GetItemByID's per-ID error shape.
+func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []string) ([]models.Item, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (r *ItemRepository) GetItemByID(ctx context.Context, id string) (*models.Item, error) {
 	query := `SELECT id, name, category_id, user_id FROM items WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, id)

@@ -30,6 +30,13 @@ func (r *PackingListRepository) AddPackingListItem(ctx context.Context, listID, 
 	return item, nil
 }
 
+// BulkUpdatePackingListItems applies a delta of itemID -> quantity changes
+// to listID atomically: quantity 0 removes an item (no-op if already
+// absent), any other quantity adds it if absent or updates it if present.
+func (r *PackingListRepository) BulkUpdatePackingListItems(ctx context.Context, listID string, changes map[string]int) error {
+	return fmt.Errorf("not implemented")
+}
+
 // UpdatePackingListItem updates quantity/notes/sort_order/is_packed (nil =
 // unchanged for each field independently).
 func (r *PackingListRepository) UpdatePackingListItem(ctx context.Context, listID, itemID string, quantity *int, notes *string, sortOrder *int, isPacked *bool) (*models.PackingListItem, error) {

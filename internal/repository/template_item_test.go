@@ -198,6 +198,67 @@ func TestGetTemplateItems_Multiple(t *testing.T) {
 	assert.True(t, foundB)
 }
 
+func TestBulkUpdateTemplateItems_AddsUpdatesAndRemoves(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemToUpdate := createTestItem(t, catID)
+	itemToRemove := createTestItem(t, catID)
+	itemToAdd := createTestItem(t, catID)
+	tmplID := createTestTemplate(t)
+
+	_, err := templateRepo.AddTemplateItem(ctx, tmplID.String(), itemToUpdate.String(), 1, nil)
+	require.NoError(t, err)
+	_, err = templateRepo.AddTemplateItem(ctx, tmplID.String(), itemToRemove.String(), 1, nil)
+	require.NoError(t, err)
+
+	changes := map[string]int{
+		itemToUpdate.String(): 5,
+		itemToRemove.String(): 0,
+		itemToAdd.String():    2,
+	}
+	err = templateRepo.BulkUpdateTemplateItems(ctx, tmplID.String(), changes)
+	require.NoError(t, err)
+
+	items, err := templateRepo.GetTemplateItems(ctx, tmplID.String())
+	require.NoError(t, err)
+	require.Len(t, items, 2, "itemToRemove should be gone, itemToUpdate and itemToAdd should remain")
+
+	byID := make(map[uuid.UUID]models.TemplateItem, len(items))
+	for _, item := range items {
+		byID[item.ItemID] = item
+	}
+	updated, ok := byID[itemToUpdate]
+	require.True(t, ok, "itemToUpdate should still be on the template")
+	assert.Equal(t, 5, updated.Quantity)
+	added, ok := byID[itemToAdd]
+	require.True(t, ok, "itemToAdd should have been added")
+	assert.Equal(t, 2, added.Quantity)
+	_, stillPresent := byID[itemToRemove]
+	assert.False(t, stillPresent, "itemToRemove should have been deleted")
+}
+
+func TestBulkUpdateTemplateItems_RollsBackOnFailure(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemValid := createTestItem(t, catID)
+	tmplID := createTestTemplate(t)
+
+	_, err := templateRepo.AddTemplateItem(ctx, tmplID.String(), itemValid.String(), 1, nil)
+	require.NoError(t, err)
+
+	changes := map[string]int{
+		itemValid.String(): 9,
+		uuid.NewString():   3, // references no row in items — violates the item_id FK
+	}
+	err = templateRepo.BulkUpdateTemplateItems(ctx, tmplID.String(), changes)
+	require.Error(t, err)
+
+	items, err := templateRepo.GetTemplateItems(ctx, tmplID.String())
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, 1, items[0].Quantity, "the valid item's quantity must be unchanged — the whole batch should have rolled back")
+}
+
 func TestGetTemplateItems_Empty(t *testing.T) {
 	ctx := context.Background()
 	tmplID := createTestTemplate(t)

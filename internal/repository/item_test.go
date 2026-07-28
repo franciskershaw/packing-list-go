@@ -307,6 +307,66 @@ func TestGetItems_FilterBySearch(t *testing.T) {
 	assert.False(t, foundNoMatch)
 }
 
+func TestGetItemsByIDs_ReturnsMatches(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+
+	itemA, err := itemRepo.CreateItem(ctx, repoUserID.String(), "repo-test-byids-a-"+uuid.NewString(), catID.String())
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM items WHERE id = $1`, itemA.ID) })
+
+	itemB, err := itemRepo.CreateItem(ctx, repoUserID.String(), "repo-test-byids-b-"+uuid.NewString(), catID.String())
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM items WHERE id = $1`, itemB.ID) })
+
+	// A third item exists but isn't requested — must not appear in results.
+	itemC, err := itemRepo.CreateItem(ctx, repoUserID.String(), "repo-test-byids-c-"+uuid.NewString(), catID.String())
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM items WHERE id = $1`, itemC.ID) })
+
+	items, err := itemRepo.GetItemsByIDs(ctx, []string{itemA.ID.String(), itemB.ID.String()})
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	var foundA, foundB, foundC bool
+	for _, it := range items {
+		if it.ID == itemA.ID {
+			foundA = true
+		}
+		if it.ID == itemB.ID {
+			foundB = true
+		}
+		if it.ID == itemC.ID {
+			foundC = true
+		}
+	}
+	assert.True(t, foundA)
+	assert.True(t, foundB)
+	assert.False(t, foundC, "item not in the requested ID list must not be returned")
+}
+
+func TestGetItemsByIDs_EmptyIDsReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+
+	items, err := itemRepo.GetItemsByIDs(ctx, []string{})
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestGetItemsByIDs_UnknownIDOmittedNotErrored(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+
+	itemA, err := itemRepo.CreateItem(ctx, repoUserID.String(), "repo-test-byids-known-"+uuid.NewString(), catID.String())
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM items WHERE id = $1`, itemA.ID) })
+
+	items, err := itemRepo.GetItemsByIDs(ctx, []string{itemA.ID.String(), uuid.NewString()})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, itemA.ID, items[0].ID)
+}
+
 func TestItemIsInUse_False(t *testing.T) {
 	ctx := context.Background()
 	catID := createTestCategory(t, repoUserID.String())
