@@ -8,6 +8,7 @@ import (
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type ItemRepository struct {
@@ -48,7 +49,26 @@ func (r *ItemRepository) GetItems(ctx context.Context, userID string, categoryID
 // Unknown IDs are silently omitted, not errored — mirrors GetItemByID's
 // not-found-is-nil convention rather than GetItemByID's per-ID error shape.
 func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []string) ([]models.Item, error) {
-	return nil, errors.New("not implemented")
+	if len(ids) == 0 {
+		return []models.Item{}, nil
+	}
+
+	query := `SELECT id, name, category_id, user_id FROM items WHERE id = ANY($1)`
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query items by ids: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]models.Item, 0, len(ids))
+	for rows.Next() {
+		item, err := scanItem(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan item: %w", err)
+		}
+		items = append(items, *item)
+	}
+	return items, rows.Err()
 }
 
 func (r *ItemRepository) GetItemByID(ctx context.Context, id string) (*models.Item, error) {

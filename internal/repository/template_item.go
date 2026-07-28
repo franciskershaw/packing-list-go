@@ -30,8 +30,45 @@ func (r *TemplateRepository) AddTemplateItem(ctx context.Context, templateID, it
 // BulkUpdateTemplateItems applies a delta of itemID -> quantity changes to
 // templateID atomically: quantity 0 removes an item (no-op if already
 // absent), any other quantity adds it if absent or updates it if present.
+// Unlike packing_list_items, template_items has no category_id to derive,
+// so an unknown item_id is caught by the table's own item_id FK constraint
+// rather than a separate lookup.
 func (r *TemplateRepository) BulkUpdateTemplateItems(ctx context.Context, templateID string, changes map[string]int) error {
-	return fmt.Errorf("not implemented")
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	for itemID, quantity := range changes {
+		if quantity == 0 {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM template_items WHERE template_id = $1 AND item_id = $2`, templateID, itemID); err != nil {
+				return fmt.Errorf("failed to remove template item %s: %w", itemID, err)
+			}
+			continue
+		}
+
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM template_items WHERE template_id = $1 AND item_id = $2)`, templateID, itemID).Scan(&exists); err != nil {
+			return fmt.Errorf("failed to check template item %s: %w", itemID, err)
+		}
+
+		if exists {
+			if _, err := tx.ExecContext(ctx, `UPDATE template_items SET quantity = $1 WHERE template_id = $2 AND item_id = $3`, quantity, templateID, itemID); err != nil {
+				return fmt.Errorf("failed to update template item %s: %w", itemID, err)
+			}
+			continue
+		}
+
+		if _, err := tx.ExecContext(ctx, `INSERT INTO template_items (template_id, item_id, quantity) VALUES ($1, $2, $3)`, templateID, itemID, quantity); err != nil {
+			return fmt.Errorf("failed to add template item %s: %w", itemID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 // UpdateTemplateItem updates quantity and/or notes. A nil quantity or notes

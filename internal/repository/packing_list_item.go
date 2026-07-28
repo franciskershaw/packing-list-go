@@ -33,8 +33,54 @@ func (r *PackingListRepository) AddPackingListItem(ctx context.Context, listID, 
 // BulkUpdatePackingListItems applies a delta of itemID -> quantity changes
 // to listID atomically: quantity 0 removes an item (no-op if already
 // absent), any other quantity adds it if absent or updates it if present.
+// category_id for an add is looked up from items within the same
+// transaction (rather than AddPackingListItem's INSERT...SELECT, which
+// silently inserts nothing for an unknown item_id) so an unknown item_id
+// surfaces as an error and rolls back the whole batch, instead of a silent
+// no-op.
 func (r *PackingListRepository) BulkUpdatePackingListItems(ctx context.Context, listID string, changes map[string]int) error {
-	return fmt.Errorf("not implemented")
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	for itemID, quantity := range changes {
+		if quantity == 0 {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM packing_list_items WHERE list_id = $1 AND item_id = $2`, listID, itemID); err != nil {
+				return fmt.Errorf("failed to remove packing list item %s: %w", itemID, err)
+			}
+			continue
+		}
+
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM packing_list_items WHERE list_id = $1 AND item_id = $2)`, listID, itemID).Scan(&exists); err != nil {
+			return fmt.Errorf("failed to check packing list item %s: %w", itemID, err)
+		}
+
+		if exists {
+			if _, err := tx.ExecContext(ctx, `UPDATE packing_list_items SET quantity = $1 WHERE list_id = $2 AND item_id = $3`, quantity, listID, itemID); err != nil {
+				return fmt.Errorf("failed to update packing list item %s: %w", itemID, err)
+			}
+			continue
+		}
+
+		var categoryID uuid.UUID
+		if err := tx.QueryRowContext(ctx, `SELECT category_id FROM items WHERE id = $1`, itemID).Scan(&categoryID); err != nil {
+			return fmt.Errorf("failed to look up item %s: %w", itemID, err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO packing_list_items (list_id, item_id, category_id, quantity) VALUES ($1, $2, $3, $4)`,
+			listID, itemID, categoryID, quantity,
+		); err != nil {
+			return fmt.Errorf("failed to add packing list item %s: %w", itemID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 // UpdatePackingListItem updates quantity/notes/sort_order/is_packed (nil =
