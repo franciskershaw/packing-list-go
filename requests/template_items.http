@@ -275,71 +275,121 @@ Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 
 # ══════════════════════════════════════════
-#  POST /templates/:id/items/bulk
+#  PATCH /templates/:id/items/bulk (PACK-035)
+#
+#  Delta contract: quantity 0 removes (no-op if already absent), any other
+#  quantity in [0, 999] adds the item if absent or updates it if present.
+#  createItem is already attached (quantity 5 after the PATCH section
+#  above); createItemTwo is not yet attached — this section adds it back
+#  alongside updating createItem, in one request, so both are attached by
+#  the time the GET below checks the detail view.
 # ══════════════════════════════════════════
 
-### ✅ 201 — adds every accessible item in the category not already on the
-#          template (createItem is already attached, so only createItemTwo
-#          should come back)
-POST http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+### ✅ 204 — mixed batch: update createItem's quantity, add createItemTwo
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
 Content-Type: application/json
 Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "{{createCategory.response.body.id}}"
+  "items": [
+    { "itemId": "{{createItem.response.body.id}}", "quantity": 6 },
+    { "itemId": "{{createItemTwo.response.body.id}}", "quantity": 2 }
+  ]
 }
 
 ###
 
-### ✅ 201 — running it again returns [] (everything in the category is now attached)
-POST http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+### ✅ 204 — running the same batch again is safe (both already at these
+#          quantities — updates to the same value, not an error)
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
 Content-Type: application/json
 Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "{{createCategory.response.body.id}}"
+  "items": [
+    { "itemId": "{{createItem.response.body.id}}", "quantity": 6 },
+    { "itemId": "{{createItemTwo.response.body.id}}", "quantity": 2 }
+  ]
 }
 
 ###
 
-### ❌ 400 — missing categoryId
-POST http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
-Content-Type: application/json
-Authorization: Bearer {{$dotenv DEV_TOKEN}}
-
-{}
-
-###
-
-### ❌ 400 — invalid categoryId (not a UUID)
-POST http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+### ❌ 400 — empty items array
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
 Content-Type: application/json
 Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "not-a-uuid"
+  "items": []
 }
 
 ###
 
-### ❌ 400 — categoryId does not exist / not accessible
-POST http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+### ❌ 400 — duplicate itemId in the same request
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
 Content-Type: application/json
 Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "00000000-0000-0000-0000-000000000000"
+  "items": [
+    { "itemId": "{{createItem.response.body.id}}", "quantity": 1 },
+    { "itemId": "{{createItem.response.body.id}}", "quantity": 2 }
+  ]
+}
+
+###
+
+### ❌ 400 — invalid itemId (not a UUID)
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "items": [{ "itemId": "not-a-uuid", "quantity": 1 }]
+}
+
+###
+
+### ❌ 400 — quantity below the allowed range (negative)
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "items": [{ "itemId": "{{createItem.response.body.id}}", "quantity": -1 }]
+}
+
+###
+
+### ❌ 400 — quantity above the allowed range (> 999)
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "items": [{ "itemId": "{{createItem.response.body.id}}", "quantity": 1000 }]
+}
+
+###
+
+### ❌ 400 — itemId does not exist / not accessible
+PATCH http://localhost:{{$dotenv PORT}}/templates/{{createTemplate.response.body.id}}/items/bulk
+Content-Type: application/json
+Authorization: Bearer {{$dotenv DEV_TOKEN}}
+
+{
+  "items": [{ "itemId": "00000000-0000-0000-0000-000000000000", "quantity": 1 }]
 }
 
 ###
 
 ### ❌ 404 — template does not exist
-POST http://localhost:{{$dotenv PORT}}/templates/00000000-0000-0000-0000-000000000000/items/bulk
+PATCH http://localhost:{{$dotenv PORT}}/templates/00000000-0000-0000-0000-000000000000/items/bulk
 Content-Type: application/json
 Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 {
-  "categoryId": "{{createCategory.response.body.id}}"
+  "items": [{ "itemId": "{{createItem.response.body.id}}", "quantity": 1 }]
 }
 
 

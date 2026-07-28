@@ -209,11 +209,71 @@ func (h *TemplateHandler) RemoveItem(c *gin.Context) {
 // item (no-op if already absent); any other quantity in [0, 999] adds the
 // item if absent or updates it if present. See PACK-035.
 func (h *TemplateHandler) BulkUpdateItems(c *gin.Context) {
-	_, _, ok := h.requireOwnedTemplate(c)
+	template, userID, ok := h.requireOwnedTemplate(c)
 	if !ok {
 		return
 	}
-	c.Status(http.StatusNotImplemented)
+	templateID := template.ID.String()
+
+	var req struct {
+		Items []struct {
+			ItemID   string `json:"itemId"`
+			Quantity int    `json:"quantity"`
+		} `json:"items"`
+	}
+	if !bindJSON(c, &req) {
+		return
+	}
+
+	if len(req.Items) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one item is required"})
+		return
+	}
+
+	seen := make(map[string]bool, len(req.Items))
+	ids := make([]string, 0, len(req.Items))
+	changes := make(map[string]int, len(req.Items))
+	for _, item := range req.Items {
+		if _, err := uuid.Parse(item.ItemID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid itemId"})
+			return
+		}
+		if seen[item.ItemID] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "duplicate itemId in request"})
+			return
+		}
+		seen[item.ItemID] = true
+		if item.Quantity < 0 || item.Quantity > 999 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "quantity must be between 0 and 999"})
+			return
+		}
+		ids = append(ids, item.ItemID)
+		changes[item.ItemID] = item.Quantity
+	}
+
+	items, err := h.itemRepo.GetItemsByIDs(c.Request.Context(), ids)
+	if err != nil {
+		internalError(c, "failed to fetch items", err)
+		return
+	}
+	accessible := make(map[string]*models.Item, len(items))
+	for i := range items {
+		accessible[items[i].ID.String()] = &items[i]
+	}
+	for _, id := range ids {
+		item, found := accessible[id]
+		if !found || !isItemAccessible(item, userID) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "itemId not accessible"})
+			return
+		}
+	}
+
+	if err := h.repo.BulkUpdateTemplateItems(c.Request.Context(), templateID, changes); err != nil {
+		internalError(c, "failed to bulk update template items", err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // validateQuantity validates a template item quantity is in [1, 999],
