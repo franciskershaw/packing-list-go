@@ -478,5 +478,24 @@ the numbering implies an order.)*
     logging (explicitly reopens an Epic-6 dismissal — see the findings
     doc), `main()` extraction, naming stutter/inconsistency, `*string`
     dates.
+  - **Note:** the "non-transactional `BulkAddItems`" item (finding 14) is
+    superseded by **PACK-035**, which deletes `BulkAddItems` entirely
+    rather than patching it in place. Drop that item from this bundle when
+    PACK-028 is picked up.
   - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
     items 10-18 (source findings).
+- **PACK-035** — Delta bulk item mutations for lists and templates.
+  - Replaces `POST /lists/:id/items/bulk` and
+    `POST /templates/:id/items/bulk` (categoryId-only, hardcoded quantity 1,
+    non-transactional loop, no real frontend caller) with
+    `PATCH /lists/:id/items/bulk` / `PATCH /templates/:id/items/bulk`: a
+    transactional delta contract (`{ items: [{ itemId, quantity }] }`,
+    `quantity: 0` means remove) so a client can add/update/remove many items
+    in one atomic request instead of one request per item.
+  - Found 2026-07-28 during `packing-list-react` work: the item-add modal's
+    "Done" flow computes a diff and fires one request per changed item
+    (`TripAddItemsModal.tsx`/`TemplateAddItemsModal.tsx`), meaning adding
+    ~30 items from a category means ~30 HTTP requests.
+  - Supersedes PACK-028's "non-transactional `BulkAddItems`" finding (see
+    note on PACK-028 above).
+  - **Status: not started.** See `docs/handoffs/PACK-035.md`.
