@@ -224,6 +224,47 @@ func TestGetPackingLists_ItemsAlwaysEmpty(t *testing.T) {
 	assert.Equal(t, []models.PackingListItem{}, found.Items, "list mode must not populate items, even when the list has items")
 }
 
+func TestGetPackingLists_ItemCountAndPackedCount(t *testing.T) {
+	ctx := context.Background()
+	catID := createTestCategory(t, repoUserID.String())
+	itemA := createTestItem(t, catID)
+	itemB := createTestItem(t, catID)
+
+	withItems, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-counts-"+uuid.NewString(), nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, withItems.ID) })
+	_, err = packingListRepo.AddPackingListItem(ctx, withItems.ID.String(), itemA.String(), 1, nil)
+	require.NoError(t, err)
+	_, err = packingListRepo.AddPackingListItem(ctx, withItems.ID.String(), itemB.String(), 1, nil)
+	require.NoError(t, err)
+	packed := true
+	_, err = packingListRepo.UpdatePackingListItem(ctx, withItems.ID.String(), itemA.String(), nil, nil, nil, &packed)
+	require.NoError(t, err)
+
+	empty, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-nocounts-"+uuid.NewString(), nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, empty.ID) })
+
+	lists, err := packingListRepo.GetPackingLists(ctx, repoUserID.String(), false)
+	require.NoError(t, err)
+
+	var foundWithItems, foundEmpty bool
+	for _, list := range lists {
+		if list.ID == withItems.ID {
+			foundWithItems = true
+			assert.Equal(t, 2, list.ItemCount)
+			assert.Equal(t, 1, list.PackedCount)
+		}
+		if list.ID == empty.ID {
+			foundEmpty = true
+			assert.Equal(t, 0, list.ItemCount)
+			assert.Equal(t, 0, list.PackedCount)
+		}
+	}
+	assert.True(t, foundWithItems, "expected list with items in results")
+	assert.True(t, foundEmpty, "expected empty list in results")
+}
+
 func TestGetPackingLists_ActiveOrderedByUpdatedAtDesc(t *testing.T) {
 	ctx := context.Background()
 

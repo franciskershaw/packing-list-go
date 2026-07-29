@@ -8,7 +8,14 @@ type PackingList struct {
 	EventDate  *string           `json:"eventDate"`
 	TemplateID *uuid.UUID        `json:"templateId"`
 	Items      []PackingListItem `json:"items"`
-	UserID     uuid.UUID         `json:"-"`
+	// ItemCount/PackedCount are authoritative from GetPackingLists (COUNT
+	// subqueries) — same division as models.Template's ItemCount, and
+	// only meaningful in list mode; GetPackingListByID leaves them zero
+	// since PackingListDetail's own Categories[].Items[] already carries
+	// real IsPacked per item.
+	ItemCount   int       `json:"itemCount"`
+	PackedCount int       `json:"packedCount"`
+	UserID      uuid.UUID `json:"-"`
 }
 
 // PackingListItem represents an item on a packing list, copied from a

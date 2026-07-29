@@ -365,6 +365,27 @@ func TestPackingListList_Active(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+func TestPackingListList_IncludesItemCountAndPackedCount(t *testing.T) {
+	repo := &MockPackingListRepository{}
+	templateRepo := &MockTemplateRepository{}
+	list := packingListResult(nil)
+	list.ItemCount = 3
+	list.PackedCount = 1
+	repo.On("GetPackingLists", mock.Anything, testPackingListUserID, false).Return([]models.PackingList{*list}, nil)
+
+	r := newPackingListTestRouter(repo, templateRepo, &MockItemRepository{})
+
+	w := doRequest(t, r, http.MethodGet, "/lists", nil, testutil.AuthHeader(t, "test@example.com", testPackingListUserID))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var body []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body, 1)
+	assert.Equal(t, float64(3), body[0]["itemCount"])
+	assert.Equal(t, float64(1), body[0]["packedCount"])
+	repo.AssertExpectations(t)
+}
+
 func TestPackingListList_ArchivedTrue(t *testing.T) {
 	repo := &MockPackingListRepository{}
 	templateRepo := &MockTemplateRepository{}
