@@ -42,16 +42,16 @@ packing_list_items WHERE list_id = packing_lists.id)` for
 
 ## Acceptance criteria
 
-- [ ] `models.PackingList` gains `ItemCount int json:"itemCount"` and
+- [x] `models.PackingList` gains `ItemCount int json:"itemCount"` and
       `PackedCount int json:"packedCount"`
-- [ ] `GetPackingLists` returns the real total item count and real packed
+- [x] `GetPackingLists` returns the real total item count and real packed
       count per list, via its own inline scan (not `scanPackingList`)
-- [ ] A list with zero items returns `itemCount: 0, packedCount: 0`, not
+- [x] A list with zero items returns `itemCount: 0, packedCount: 0`, not
       an error or null
-- [ ] `GetPackingListByID`/`PackingListDetail` are unaffected — no new
+- [x] `GetPackingListByID`/`PackingListDetail` are unaffected — no new
       fields, no behavior change (counts are trivially derivable
       client-side from `Categories[].Items[]` there already)
-- [ ] `GET /lists` response includes both fields per list (handler needs
+- [x] `GET /lists` response includes both fields per list (handler needed
       no code change — verified via a handler test, same as
       `TestTemplateList_IncludesItemCount`)
 
@@ -79,3 +79,12 @@ packing_list_items WHERE list_id = packing_lists.id)` for
   `TestTemplateList_IncludesItemCount`'s mocked-repo style exactly (set
   `ItemCount`/`PackedCount` on a `packingListResult(...)` fixture, assert
   the JSON response's `itemCount`/`packedCount` fields).
+- No `.http` request file change — `GET /lists` is already covered there;
+  the new fields just show up in the existing response, no new manual
+  case needed.
+
+## Close-out
+
+Completed 2026-07-29. Small, fully-precedented mirror of `GetTemplates`'
+`ItemCount` fix — no new lessons, no LESSONS.md entry warranted on its
+own.

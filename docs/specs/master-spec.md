@@ -499,3 +499,14 @@ the numbering implies an order.)*
   - Supersedes PACK-028's "non-transactional `BulkAddItems`" finding (see
     note on PACK-028 above).
   - **Status: Done.** See `docs/handoffs/PACK-035.md`.
+- **PACK-036** — `ItemCount`/`PackedCount` on `GetPackingLists`.
+  - `models.PackingList` gains `ItemCount`/`PackedCount` (list mode only —
+    `PackingListDetail` is unaffected, its `Categories[].Items[]` already
+    carries real `IsPacked`), populated via two correlated `COUNT`
+    subqueries on `GetPackingLists`, mirroring `GetTemplates`' own
+    `ItemCount` fix exactly (own inline scan, not the shared
+    `scanPackingList`).
+  - Raised 2026-07-29 during `packing-list-react`'s PACKFE-005 Piece 7
+    (list/rail assembly) — the trips list/rail needs a per-trip "n of m
+    packed" count, the same gap `GetTemplates` had before its own fix.
+  - **Status: Done.** See `docs/handoffs/PACK-036.md`.

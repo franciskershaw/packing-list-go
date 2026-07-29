@@ -153,16 +153,25 @@ func scanPackingList(scan func(...any) error) (*models.PackingList, error) {
 // ordered by updated_at DESC) or archived (archived_at IS NOT NULL, ordered
 // by archived_at DESC) depending on archived. Items is always left empty —
 // list mode never populates it, matching GetTemplates' precedent.
+//
+// item_count/packed_count are correlated subqueries rather than
+// scanPackingList's shared scan — no other caller's query selects these
+// columns, and a LEFT JOIN/GROUP BY would drag ORDER BY into the group-by
+// list. Mirrors GetTemplates' own ItemCount precedent exactly.
 func (r *PackingListRepository) GetPackingLists(ctx context.Context, userID string, archived bool) ([]models.PackingList, error) {
 	query := `
-		SELECT id, name, event_date, template_id, user_id
+		SELECT id, name, event_date, template_id, user_id,
+			(SELECT COUNT(*) FROM packing_list_items WHERE list_id = packing_lists.id) AS item_count,
+			(SELECT COUNT(*) FROM packing_list_items WHERE list_id = packing_lists.id AND is_packed = true) AS packed_count
 		FROM packing_lists
 		WHERE user_id = $1 AND archived_at IS NULL
 		ORDER BY updated_at DESC
 	`
 	if archived {
 		query = `
-			SELECT id, name, event_date, template_id, user_id
+			SELECT id, name, event_date, template_id, user_id,
+				(SELECT COUNT(*) FROM packing_list_items WHERE list_id = packing_lists.id) AS item_count,
+				(SELECT COUNT(*) FROM packing_list_items WHERE list_id = packing_lists.id AND is_packed = true) AS packed_count
 			FROM packing_lists
 			WHERE user_id = $1 AND archived_at IS NOT NULL
 			ORDER BY archived_at DESC
@@ -177,11 +186,38 @@ func (r *PackingListRepository) GetPackingLists(ctx context.Context, userID stri
 
 	lists := make([]models.PackingList, 0)
 	for rows.Next() {
-		list, err := scanPackingList(rows.Scan)
-		if err != nil {
+		var (
+			id             uuid.UUID
+			name           string
+			eventDateNull  sql.NullTime
+			templateIDNull sql.NullString
+			userIDScanned  uuid.UUID
+			itemCount      int
+			packedCount    int
+		)
+		if err := rows.Scan(&id, &name, &eventDateNull, &templateIDNull, &userIDScanned, &itemCount, &packedCount); err != nil {
 			return nil, fmt.Errorf("failed to scan packing list: %w", err)
 		}
-		lists = append(lists, *list)
+		list := models.PackingList{
+			ID:          id,
+			Name:        name,
+			UserID:      userIDScanned,
+			Items:       []models.PackingListItem{},
+			ItemCount:   itemCount,
+			PackedCount: packedCount,
+		}
+		if eventDateNull.Valid {
+			formatted := eventDateNull.Time.Format("2006-01-02")
+			list.EventDate = &formatted
+		}
+		if templateIDNull.Valid {
+			templateID, err := uuid.Parse(templateIDNull.String)
+			if err != nil {
+				return nil, fmt.Errorf("invalid template_id UUID %q: %w", templateIDNull.String, err)
+			}
+			list.TemplateID = &templateID
+		}
+		lists = append(lists, list)
 	}
 	return lists, rows.Err()
 }
