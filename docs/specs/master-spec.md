@@ -538,3 +538,19 @@ the numbering implies an order.)*
     (list/rail assembly) — the trips list/rail needs a per-trip "n of m
     packed" count, the same gap `GetTemplates` had before its own fix.
   - **Status: Done.** See `docs/handoffs/PACK-036.md`.
+- **PACK-037** — Extend the bulk item-mutation delta to cover `isPacked`.
+  - `PATCH /lists/:id/items/bulk` (PACK-035's delta contract) currently
+    only accepts `{itemId, quantity}`. Extend it to also accept
+    `isPacked`, and have `packing-list-react`'s packed-checkbox
+    (`TripItemRow` → `useUpdateTripItem`) batch rapid toggles through it
+    instead of firing one `PATCH .../items/:itemId` per click.
+  - Found 2026-08-01 during PACK-022's manual verification: rapidly
+    marking a ~30-item list as packed could burn half the (then-60/min,
+    now 120/min) global rate limit budget in one ordinary interaction —
+    same shape of problem PACK-035 already solved for bulk item-adds,
+    just never extended to the packed-toggle. Debouncing the frontend
+    click handler wouldn't fix this (it delays requests, doesn't reduce
+    their count) — batching through a real bulk contract is the actual
+    fix. See `docs/handoffs/PACK-022.md`'s manual-verification section for
+    the full account.
+  - **Status: not started.**

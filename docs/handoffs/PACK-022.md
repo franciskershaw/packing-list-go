@@ -34,11 +34,13 @@ Key decisions from interview:
   multi-instance deployment would silently multiply the effective limit
   by instance count since state isn't shared — that's the revisit-when
   trigger, not something to guard against now.
-- **Limits**: global `Rate{Period: time.Minute, Limit: 60}` per IP;
-  `/auth/*` group `Rate{Period: time.Minute, Limit: 10}` per IP (its own
-  independent limiter instance/store — hitting the `/auth/*` limit doesn't
-  consume the global bucket or vice versa; a request under both is
-  checked against both). `ulule/limiter`'s sliding-window algorithm
+- **Limits**: global `Rate{Period: time.Minute, Limit: 120}` per IP;
+  `/auth/google/*` + `/auth/logout` `Rate{Period: time.Minute, Limit: 10}`
+  per IP; `/auth/refresh` its own `Rate{Period: time.Minute, Limit: 30}`
+  per IP. Each group has its own independent limiter instance/store —
+  hitting one doesn't consume another's bucket — and every request is
+  checked against both the global limiter and whichever group limiter
+  applies to its route. `ulule/limiter`'s sliding-window algorithm
   smooths the classic fixed-window edge-burst problem, so no separate
   burst parameter is needed beyond `Limit` itself. Verify the exact
   `Rate`/store/middleware constructor API against the library's current
@@ -49,6 +51,11 @@ Key decisions from interview:
   `auth.GET("/google/login", ...)`) so the stricter limiter can be
   `.Use()`'d on the group, mirroring the existing `authed :=
   server.Group("/"); authed.Use(...)` pattern for authenticated routes.
+  **Revised during manual verification** (see note below): one group
+  wasn't enough — `/auth/*` split into two separate `server.Group("/auth")`
+  calls (Gin allows multiple groups sharing a prefix, each with its own
+  middleware), `authLogin` (`google/login`, `google/callback`, `logout`)
+  and `authRefresh` (`refresh` only), each with its own limiter.
 - **Body size cap**: 1 MB, applied globally. No file/image uploads exist
   anywhere in this API (categories/items/templates/lists are all small
   JSON payloads, including the largest bulk-delta requests), so 1 MB is
@@ -110,10 +117,13 @@ Key decisions from interview:
       413 with `gin.H{"error": "request body too large"}` for any request
       body exceeding 1 MB; requests under the cap are unaffected and still
       bind normally downstream. Applied globally via `server.Use(...)`.
-- [ ] AC5 — `config.Config` gains `TrustedProxies []string`, parsed from a
-      comma-separated env var, defaulting to `nil`/empty when unset.
-      `main.go`'s `server.SetTrustedProxies(...)` reads from
-      `cfg.TrustedProxies` instead of a hardcoded `nil`.
+- [x] AC5 — `config.Config` gains `TrustedProxies []string`, parsed from a
+      comma-separated env var (`TRUSTED_PROXIES`), defaulting to
+      `nil`/empty when unset. `main.go` calls
+      `server.SetTrustedProxies(cfg.TrustedProxies)` — this call didn't
+      exist at all before this ticket (confirmed via grep before adding
+      it), so the app was running on Gin's unsafe default (trust all
+      proxies) until now, exactly as audit finding 4 described.
 
 ## Non-goals
 
@@ -167,13 +177,14 @@ Key decisions from interview:
   `main_test.go` either.
 - Manual verification (documented here, no `.http` file — see Non-goals):
   1. `go run main.go`, then `for i in $(seq 1 15); do curl -i
-     http://localhost:$PORT/health; done` — confirm the first 60 requests
+     http://localhost:$PORT/health; done` — confirm the first 120 requests
      (global limit) succeed and it never trips within just 15 hits;
      repeat with a tighter temporary local limit (not committed) to
      confirm the 429 path actually fires and includes `Retry-After`.
-  2. Same loop against `POST /auth/refresh` (or `/auth/google/login`) —
-     confirm it 429s well before 60 hits, at the `/auth/*` group's
-     stricter limit.
+  2. Same loop against `POST /auth/refresh` and `/auth/google/login`
+     separately — confirm each 429s at its own group's limit (30/min and
+     10/min respectively), independent of the other and of the global
+     limiter.
   3. `curl -X POST http://localhost:$PORT/categories -H "Authorization:
      Bearer $DEV_TOKEN" -H "Content-Type: application/json" --data-binary
      @<(head -c 2000000 /dev/urandom | base64)` — confirm 413 with the
@@ -181,3 +192,29 @@ Key decisions from interview:
   4. Confirm `SetTrustedProxies(nil)` behavior is unchanged for local dev
      (no proxy in front) — `c.ClientIP()` still resolves to the real
      local request origin, not broken by the config plumbing change.
+
+  **Found during real-frontend verification (not the curl sequence
+  above)**: the developer hit the `/auth/*` group's 10/min limit after
+  just 5-6 browser refreshes. Root cause: `packing-list-react`'s
+  `AuthProvider` calls `POST /auth/refresh` on every app mount for
+  session restore (the access token is in-memory only and doesn't
+  survive a refresh) — a routine, per-load call, not a rare
+  attacker-facing flow like login/callback, and `main.tsx`'s
+  `StrictMode` likely doubles it in dev. The original single `/auth/*`
+  grouping conflated two different usage patterns under one budget — the
+  same shape of composition miss as PACK-027's family-lookup/storage
+  interaction, just smaller. Fixed by splitting into `authLogin` (10/min:
+  `google/login`, `google/callback`, `logout` — genuinely rare, deliberate
+  actions) and `authRefresh` (30/min: `refresh` alone).
+
+  Separately, also raised: rapidly marking many packing-list items as
+  packed fires one `PATCH /lists/:id/items/:itemId` per click with no
+  batching (`TripItemRow`'s checkbox → `useUpdateTripItem`), so a user
+  quickly clearing a ~30-item list could burn half the *original* 60/min
+  global budget in one ordinary interaction. Debouncing wouldn't fix this
+  — it delays requests, it doesn't reduce their count. Mitigated here by
+  raising the global default to 120/min. The real fix — extending
+  `PACK-035`'s `PATCH .../items/bulk` delta contract to accept `isPacked`
+  so rapid toggles can batch through it the same way bulk item-adds
+  already do — is real backend + frontend work, **not built in this
+  ticket**; noted as a future item (see `master-spec.md`'s Epic 7).

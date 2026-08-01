@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -33,7 +34,7 @@ func Load() (*Config, error) {
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URI"),
 		FrontendURL:        os.Getenv("FRONTEND_URL"),
-		TrustedProxies:     nil,
+		TrustedProxies:     parseTrustedProxies(os.Getenv("TRUSTED_PROXIES")),
 	}
 
 	// Validate required env vars
@@ -70,4 +71,19 @@ func getEnv(key, defaultVal string) string {
 		return value
 	}
 	return defaultVal
+}
+
+func parseTrustedProxies(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	proxies := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			proxies = append(proxies, trimmed)
+		}
+	}
+	return proxies
 }

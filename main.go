@@ -29,8 +29,9 @@ const tokenSweepInterval = time.Hour
 const shutdownGracePeriod = 10 * time.Second
 const maxRequestBodyBytes = 1 << 20 // 1 MB
 
-var globalRateLimit = limiter.Rate{Period: time.Minute, Limit: 60}
-var authRateLimit = limiter.Rate{Period: time.Minute, Limit: 10}
+var globalRateLimit = limiter.Rate{Period: time.Minute, Limit: 120}
+var authLoginRateLimit = limiter.Rate{Period: time.Minute, Limit: 10}
+var authRefreshRateLimit = limiter.Rate{Period: time.Minute, Limit: 30}
 
 func main() {
 	// Match Gin's own default writer (os.Stdout) so log output interleaves in order.
@@ -70,6 +71,10 @@ func main() {
 	// Initialize Gin server
 	gin.SetMode(configureGinMode(cfg.Environment))
 	server := gin.Default()
+	if err := server.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		fmt.Fprintf(os.Stderr, "SetTrustedProxies failed: %v\n", err)
+		os.Exit(1)
+	}
 	server.Use(middleware.ErrorLogger())
 	server.Use(middleware.BodyLimit(maxRequestBodyBytes))
 	server.Use(middleware.RateLimit(memory.NewStore(), globalRateLimit))
@@ -81,14 +86,21 @@ func main() {
 		})
 	})
 
-	// Auth routes (public)
-	authPublic := server.Group("/auth")
-	authPublic.Use(middleware.RateLimit(memory.NewStore(), authRateLimit))
+	// Auth routes (public). Login/callback/logout are rare, deliberate user
+	// actions and get the tight limit; refresh fires on every page load for
+	// session restore, so it needs real headroom.
+	authLogin := server.Group("/auth")
+	authLogin.Use(middleware.RateLimit(memory.NewStore(), authLoginRateLimit))
 	{
-		authPublic.GET("/google/login", authHandler.LoginWithGoogle)
-		authPublic.GET("/google/callback", authHandler.GoogleCallback)
-		authPublic.POST("/refresh", authHandler.RefreshToken)
-		authPublic.POST("/logout", authHandler.Logout)
+		authLogin.GET("/google/login", authHandler.LoginWithGoogle)
+		authLogin.GET("/google/callback", authHandler.GoogleCallback)
+		authLogin.POST("/logout", authHandler.Logout)
+	}
+
+	authRefresh := server.Group("/auth")
+	authRefresh.Use(middleware.RateLimit(memory.NewStore(), authRefreshRateLimit))
+	{
+		authRefresh.POST("/refresh", authHandler.RefreshToken)
 	}
 
 	// Authenticated routes
