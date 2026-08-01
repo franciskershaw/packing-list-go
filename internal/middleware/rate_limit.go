@@ -17,5 +17,8 @@ func RateLimit(store limiter.Store, rate limiter.Rate) gin.HandlerFunc {
 			c.Header("Retry-After", strconv.Itoa(int(rate.Period.Seconds())))
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
 		}),
+		mgin.WithErrorHandler(func(c *gin.Context, err error) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		}),
 	)
 }

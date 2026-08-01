@@ -84,11 +84,22 @@ Key decisions from interview:
 
 ## Acceptance criteria
 
-- [ ] AC1 — `middleware.RateLimit(rate limiter.Rate) gin.HandlerFunc` (or
-      equivalent constructor wrapping the `ulule/limiter` Gin adapter)
-      returns 429 with `gin.H{"error": "rate limit exceeded"}` and a
-      `Retry-After` header once a per-IP limit is exceeded; requests under
-      the limit pass through unchanged.
+- [x] AC1 — `middleware.RateLimit(store limiter.Store, rate limiter.Rate)
+      gin.HandlerFunc` wrapping the `ulule/limiter` Gin adapter returns 429
+      with `gin.H{"error": "rate limit exceeded"}` and a `Retry-After`
+      header once a per-IP limit is exceeded; requests under the limit
+      pass through unchanged.
+      **Found during implementation, bundled in**: the library's default
+      `OnError` handler (genuine store failures, distinct from limit-
+      reached) is `panic(err)` — recovered by Gin's `Recovery()` middleware
+      so it doesn't crash the server, but the response wouldn't match this
+      project's `gin.H{"error": ...}` convention and could leak a stack
+      trace in debug mode. Added a `WithErrorHandler` override returning a
+      clean `500 gin.H{"error": "internal server error"}`, covered by
+      `TestRateLimit_StoreErrorReturnsCleanServerError` (a small in-file
+      `failingStore` fake implementing `limiter.Store`). Same shape as
+      this ticket's own body-cap/trusted-proxies pairing — a directly
+      adjacent gap in code this AC already touches, not a new feature.
 - [ ] AC2 — Global rate limiter (`Rate{Period: time.Minute, Limit: 60}`)
       applied via `server.Use(...)` covering the whole API.
 - [ ] AC3 — `/auth/*` routes regrouped under `server.Group("/auth")` with
@@ -136,6 +147,8 @@ Key decisions from interview:
     header present.
   - `TestRateLimit_TracksDifferentIPsSeparately` — two distinct
     `RemoteAddr`s each get their own bucket.
+  - `TestRateLimit_StoreErrorReturnsCleanServerError` — added mid-
+    implementation, see AC1 note above.
 - `internal/middleware/body_limit_test.go`:
   - `TestBodyLimit_AllowsRequestsUnderCap`
   - `TestBodyLimit_BlocksRequestsOverCap` — asserts 413 and the
