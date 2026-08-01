@@ -1,0 +1,7 @@
+ALTER TABLE users
+    ALTER COLUMN avatar_url DROP NOT NULL,
+    ALTER COLUMN avatar_url DROP DEFAULT,
+    ALTER COLUMN display_name DROP NOT NULL,
+    ALTER COLUMN display_name DROP DEFAULT,
+    ALTER COLUMN last_login_at DROP NOT NULL,
+    ALTER COLUMN last_login_at DROP DEFAULT;

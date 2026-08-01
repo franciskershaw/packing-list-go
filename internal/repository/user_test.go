@@ -90,10 +90,20 @@ func TestInsertUser_NullDisplayNameRejected(t *testing.T) {
 	assert.Error(t, err, "expected a NOT NULL constraint to reject a NULL display_name")
 }
 
-func TestInsertUser_OmittedColumnsDefaultToEmptyString(t *testing.T) {
+func TestInsertUser_NullLastLoginAtRejected(t *testing.T) {
+	id := uuid.New()
+	_, err := db.DB.Exec(
+		`INSERT INTO users (id, google_id, email, last_login_at) VALUES ($1, $2, $3, NULL)`,
+		id, "repo-test-google-"+id.String(), "repo-test-"+id.String()+"@example.com",
+	)
+	assert.Error(t, err, "expected a NOT NULL constraint to reject a NULL last_login_at")
+}
+
+func TestInsertUser_OmittedColumnsDefaultToUsableValues(t *testing.T) {
 	ctx := context.Background()
 	id := uuid.New()
 
+	beforeInsert := time.Now()
 	_, err := db.DB.Exec(
 		`INSERT INTO users (id, google_id, email) VALUES ($1, $2, $3)`,
 		id, "repo-test-google-"+id.String(), "repo-test-"+id.String()+"@example.com",
@@ -106,4 +116,5 @@ func TestInsertUser_OmittedColumnsDefaultToEmptyString(t *testing.T) {
 	require.NotNil(t, fetched)
 	assert.Equal(t, "", fetched.AvatarURL)
 	assert.Equal(t, "", fetched.DisplayName)
+	assert.WithinDuration(t, beforeInsert, fetched.LastLoginAt, 5*time.Second)
 }

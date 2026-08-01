@@ -1,4 +1,4 @@
-# PACK-031 — `users` NOT NULL defaults for `avatar_url` and `display_name`
+# PACK-031 — `users` NOT NULL defaults for `avatar_url`, `display_name`, `last_login_at`
 
 ## Context
 
@@ -59,6 +59,22 @@ fixture pattern (`internal/repository/packing_list_test.go:113`).
   locks in the `DEFAULT ''` path itself (omit both columns, insert
   succeeds, `GetUserByID` returns `AvatarURL == ""` and
   `DisplayName == ""`).
+- **Scope expanded a second time, to `last_login_at`, found while writing
+  the tests themselves.** `last_login_at TIMESTAMPTZ` (`000001`, no
+  default, no `NOT NULL`) has the identical gap — scanned into a
+  non-nullable `time.Time` in the same three read paths. Found via my own
+  `TestInsertUser_OmittedColumnsDefaultToEmptyString` draft: omitting
+  `last_login_at` (incidental to that test's actual purpose) reproduced
+  the exact scan-error bug. Checked the live dev DB: **all 5 rows**
+  currently have `NULL` `last_login_at` — including the real
+  `dev-tools-kitted-test-account` row `scripts/gen_token.go` seeds — more
+  exposed than the other two columns, since `getUserByGoogleID` (called
+  on *every* Google OAuth login, not just new-user creation) would 500
+  against any of them. Bundled in rather than filed separately, same as
+  `display_name`. Backfill: `UPDATE users SET last_login_at =
+  COALESCE(created_at, CURRENT_TIMESTAMP) WHERE last_login_at IS NULL`,
+  then `DEFAULT CURRENT_TIMESTAMP` (mirrors `created_at`'s existing
+  default) + `NOT NULL`.
 - **No changes needed to `internal/repository/user.go`.**
   `GetOrCreateUser`/`GetUserByID`/`getUserByGoogleID` already assume
   non-null values in their scan targets — that assumption becomes true
@@ -70,33 +86,49 @@ fixture pattern (`internal/repository/packing_list_test.go:113`).
   migration against the real dev DB and confirming it succeeds against
   the live NULL rows found above — proof it's not just a clean-slate-DB
   migration.
+- **Implementation note: editing an already-applied migration file
+  doesn't get picked up by `InitDB`/`TestMain` on its own.** `last_login_at`
+  was added to `000004`'s SQL *after* that version had already been
+  applied to the dev DB (from testing the first two columns) — golang-migrate
+  tracks applied versions and only runs pending ones forward, so the edit
+  was silently inert until the applied `000004` was explicitly rolled back
+  (`migrate.Steps(-1)`) and reapplied. Only came up because this is a
+  shared, persistent dev DB, not a fresh one per run — worth remembering
+  for any future migration edited after its first local apply.
 
 ## Acceptance criteria
 
-- [ ] Migration `000004_users_not_null_defaults`: backfills existing
-      `NULL` `avatar_url`/`display_name` rows to `''`, then sets
-      `NOT NULL DEFAULT ''` on both columns
-- [ ] Down migration drops `NOT NULL`/`DEFAULT` on both columns (schema
-      only, no data reversal — accepted lossy rollback per the decision
+- [x] Migration `000004_users_not_null_defaults`: backfills existing
+      `NULL` `avatar_url`/`display_name` rows to `''` and `last_login_at`
+      to `COALESCE(created_at, CURRENT_TIMESTAMP)`, then sets
+      `NOT NULL DEFAULT ''` on the two string columns and
+      `NOT NULL DEFAULT CURRENT_TIMESTAMP` on `last_login_at`
+- [x] Down migration drops `NOT NULL`/`DEFAULT` on all three columns
+      (schema only, no data reversal — accepted lossy rollback per the
+      decision above)
+- [x] Migration applies cleanly against the real dev DB, including its
+      current NULL rows across all three columns (manual verification —
+      `go run main.go` or the repo test suite's `TestMain` both trigger
+      it; required an explicit down+up replay mid-implementation after
+      `last_login_at` was added to an already-applied `000004` — see note
       above)
-- [ ] Migration applies cleanly against the real dev DB, including its
-      current 3 rows with `NULL` `avatar_url`/`display_name` (manual
-      verification — `go run main.go` or the repo test suite's `TestMain`
-      both trigger it)
-- [ ] Integration test: raw-SQL `INSERT` explicitly setting
+- [x] Integration test: raw-SQL `INSERT` explicitly setting
       `avatar_url = NULL` fails with a constraint-violation error
-- [ ] Integration test: raw-SQL `INSERT` explicitly setting
+- [x] Integration test: raw-SQL `INSERT` explicitly setting
       `display_name = NULL` fails with a constraint-violation error
-- [ ] Integration test: raw-SQL `INSERT` omitting both `avatar_url` and
-      `display_name` succeeds, and `GetUserByID` on that row returns
-      `AvatarURL == ""` and `DisplayName == ""` with no error
+- [x] Integration test: raw-SQL `INSERT` explicitly setting
+      `last_login_at = NULL` fails with a constraint-violation error
+- [x] Integration test: raw-SQL `INSERT` omitting `avatar_url`,
+      `display_name`, and `last_login_at` succeeds, and `GetUserByID` on
+      that row returns `AvatarURL == ""`, `DisplayName == ""`, and a
+      `LastLoginAt` close to the insert time, with no error
 
 ## Non-goals
 
 - No changes to `internal/repository/user.go` or any other Go source —
   see decision above
 - No changes to `scripts/gen_token.go` — already seeds real `avatarUrl`/
-  `displayName` values since PACK-030
+  `displayName`/`last_login_at` values since PACK-030
 - No data-reversing down migration — schema-only rollback, explicitly
   accepted as lossy
 - No new/changed `.http` manual-verification section — no client-visible
@@ -106,9 +138,10 @@ fixture pattern (`internal/repository/packing_list_test.go:113`).
 
 - `db/migrations/000004_users_not_null_defaults.up.sql` /
   `.down.sql` — new
-- `internal/repository/user_test.go` — extended existing file with three
+- `internal/repository/user_test.go` — extended existing file with four
   new tests: `TestInsertUser_NullAvatarURLRejected`,
   `TestInsertUser_NullDisplayNameRejected`,
-  `TestInsertUser_OmittedColumnsDefaultToEmptyString` — all raw-SQL
+  `TestInsertUser_NullLastLoginAtRejected`,
+  `TestInsertUser_OmittedColumnsDefaultToUsableValues` — all raw-SQL
   fixtures (mirroring `archivePackingListDirect`), since no real
   `GetOrCreateUser` call can ever pass `NULL`
