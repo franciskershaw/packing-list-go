@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/franciskershaw/packing-list-go/config"
 	"github.com/franciskershaw/packing-list-go/internal/auth"
@@ -17,6 +18,17 @@ type UserRepository interface {
 	GetUserByID(ctx context.Context, userID string) (*models.User, error)
 }
 
+// RefreshTokenRepository backs PACK-027's rotation-with-reuse-detection
+// scheme (docs/handoffs/PACK-027.md) — one row per login family, overwritten
+// in place on each legitimate rotation.
+type RefreshTokenRepository interface {
+	CreateFamily(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error)
+	FindFamilyByHash(ctx context.Context, userID, tokenHash string) (*models.RefreshTokenFamily, error)
+	RotateFamily(ctx context.Context, familyID, newTokenHash string, newExpiresAt time.Time) error
+	RevokeFamily(ctx context.Context, familyID string) error
+	DeleteStaleFamiliesForUser(ctx context.Context, userID string) error
+}
+
 type OAuthManager interface {
 	GenerateState() string
 	ValidateState(state string) bool
@@ -26,13 +38,14 @@ type OAuthManager interface {
 }
 
 type AuthHandler struct {
-	userRepo     UserRepository
-	oauthManager OAuthManager
-	cfg          *config.Config
+	userRepo         UserRepository
+	oauthManager     OAuthManager
+	refreshTokenRepo RefreshTokenRepository
+	cfg              *config.Config
 }
 
-func NewAuthHandler(userRepo UserRepository, oauthManager OAuthManager, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{userRepo: userRepo, oauthManager: oauthManager, cfg: cfg}
+func NewAuthHandler(userRepo UserRepository, oauthManager OAuthManager, refreshTokenRepo RefreshTokenRepository, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{userRepo: userRepo, oauthManager: oauthManager, refreshTokenRepo: refreshTokenRepo, cfg: cfg}
 }
 
 // setRefreshCookie sets the refreshToken cookie with consistent
