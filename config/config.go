@@ -19,6 +19,7 @@ type Config struct {
 	GoogleRedirectURL  string
 	GoogleOAuth2Config *oauth2.Config
 	FrontendURL        string
+	TrustedProxies     []string
 }
 
 func Load() (*Config, error) {
@@ -32,6 +33,7 @@ func Load() (*Config, error) {
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URI"),
 		FrontendURL:        os.Getenv("FRONTEND_URL"),
+		TrustedProxies:     nil,
 	}
 
 	// Validate required env vars
