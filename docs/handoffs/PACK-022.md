@@ -218,3 +218,7 @@ Key decisions from interview:
   so rapid toggles can batch through it the same way bulk item-adds
   already do — is real backend + frontend work, **not built in this
   ticket**; noted as a future item (see `master-spec.md`'s Epic 7).
+
+## Close-out
+
+Completed 2026-08-01. Retro entry in LESSONS.md.

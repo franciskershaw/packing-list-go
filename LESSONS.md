@@ -446,3 +446,30 @@ project kickoff.
   caught the gap.
 - Demotion check: skipped — Epic 7 still has several open tickets
   (PACK-022/023/024/025/026/028), not a boundary.
+
+## 2026-08-01 — PACK-022 — Rate limiting/body cap/trusted proxies shipped; real-frontend verification caught two limit-tuning bugs the curl-loop plan wouldn't have
+
+- All 5 ACs went green on the planned tests-first pass (one commit per
+  AC, `ulule/limiter/v3` chosen over hand-rolling to avoid PACK-023's
+  exact unbounded-map bug class). AC5 also surfaced that
+  `SetTrustedProxies` had never been called at all before this ticket —
+  the app was on Gin's unsafe "trust all proxies" default the whole time.
+- After all ACs landed, using the real frontend (not the handoff doc's
+  documented curl loops) surfaced two limit-tuning bugs the synthetic
+  verification plan couldn't have caught: `/auth/refresh`'s session-
+  restore call (fired on every page load) was bucketed under the same
+  tight `/auth/*` group as rare login/callback flows, and the original
+  60/min global default could be burned through in one ordinary
+  interaction (rapidly marking a packed list's items). Fixed by
+  splitting `/auth/refresh` into its own limiter and raising the global
+  default to 120/min. Filed PACK-037 for the real structural fix
+  (batching packed-toggles through an extended bulk-delta contract)
+  rather than building it into this ticket.
+- **Pattern**: a curl loop that hits an endpoint N times verifies the
+  rate-limiting *mechanism* works, but says nothing about whether the
+  configured *numbers* match real usage shapes — that only surfaces from
+  actually using the real consuming client. Worth remembering for any
+  future throttling/limit-tuning work, though not promoted to a global
+  rule this round (see close-out — declined).
+- Demotion check: skipped — Epic 7 still has several open tickets
+  (PACK-023/024/025/026/028), not a boundary.

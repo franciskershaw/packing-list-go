@@ -452,10 +452,17 @@ the numbering implies an order.)*
   - **Status: Done.** See `docs/handoffs/PACK-021.md`. Source finding:
     `docs/handoffs/audit-2026-07-11-findings.md` items 1-2.
 - **PACK-022** — Request-level abuse protection.
-  - Rate limiting on `/auth/*`, request body size cap,
-    `server.SetTrustedProxies(nil)`.
-  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
-    items 3-4 (source findings).
+  - Rate limiting (global 120/min per IP; `/auth/google/*`+`/auth/logout`
+    10/min; `/auth/refresh` its own 30/min), request body size cap
+    (1 MB), and config-driven `server.SetTrustedProxies(...)` (was never
+    called at all before this ticket).
+  - Grilled and implemented 2026-08-01. Real-frontend manual verification
+    (not just the documented curl loops) caught two limit-tuning gaps —
+    see `docs/handoffs/PACK-022.md` and `LESSONS.md` (2026-08-01) for the
+    full account. Filed **PACK-037** as a follow-up (packed-toggle
+    request batching), not built in this ticket.
+  - **Status: Done.** See `docs/handoffs/PACK-022.md`. Source finding:
+    `docs/handoffs/audit-2026-07-11-findings.md` items 3-4.
 - **PACK-023** — OAuth state store fix.
   - Unbounded in-memory map on `/auth/google/login` — sweep expired
     entries, or go stateless with a signed state cookie.
