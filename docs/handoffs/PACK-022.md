@@ -100,7 +100,7 @@ Key decisions from interview:
       `failingStore` fake implementing `limiter.Store`). Same shape as
       this ticket's own body-cap/trusted-proxies pairing — a directly
       adjacent gap in code this AC already touches, not a new feature.
-- [ ] AC2 — Global rate limiter (`Rate{Period: time.Minute, Limit: 60}`)
+- [x] AC2 — Global rate limiter (`Rate{Period: time.Minute, Limit: 60}`)
       applied via `server.Use(...)` covering the whole API.
 - [ ] AC3 — `/auth/*` routes regrouped under `server.Group("/auth")` with
       their own stricter rate limiter (`Rate{Period: time.Minute, Limit:

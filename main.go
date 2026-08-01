@@ -19,12 +19,16 @@ import (
 	"github.com/franciskershaw/packing-list-go/internal/middleware"
 	"github.com/franciskershaw/packing-list-go/internal/repository"
 	"github.com/gin-gonic/gin"
+	"github.com/ulule/limiter/v3"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 
 	_ "github.com/joho/godotenv/autoload"
 )
 
 const tokenSweepInterval = time.Hour
 const shutdownGracePeriod = 10 * time.Second
+
+var globalRateLimit = limiter.Rate{Period: time.Minute, Limit: 60}
 
 func main() {
 	// Match Gin's own default writer (os.Stdout) so log output interleaves in order.
@@ -65,6 +69,7 @@ func main() {
 	gin.SetMode(configureGinMode(cfg.Environment))
 	server := gin.Default()
 	server.Use(middleware.ErrorLogger())
+	server.Use(middleware.RateLimit(memory.NewStore(), globalRateLimit))
 
 	// Health check (public)
 	server.GET("/health", func(c *gin.Context) {
