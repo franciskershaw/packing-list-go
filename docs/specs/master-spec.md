@@ -292,7 +292,8 @@ the numbering implies an order.)*
   - **Status: Done.** See `docs/handoffs/PACK-030.md`. Surfaced a
     follow-up finding, filed below as **PACK-031**.
 
-- **PACK-031** — `avatar_url` NOT NULL constraint.
+- **PACK-031** — `avatar_url`/`display_name`/`last_login_at` NOT NULL
+  constraints.
   - Found 2026-07-14 closing out PACK-030: `GET /me` 500'd against the
     dev token because `scripts/gen_token.go`'s user upsert omitted
     `avatar_url`, leaving it genuinely `NULL` — the column is nullable in
@@ -318,7 +319,14 @@ the numbering implies an order.)*
     `avatarUrl`) already shipped as part of PACK-030 — this ticket is the
     schema-level and test-coverage follow-up, not a re-fix of the
     immediate symptom.
-  - **Status: not started.**
+  - Scope grew twice during PACK-031's own `grill-me`/implementation:
+    `display_name` (identical gap, found during the interview) and
+    `last_login_at` (identical gap, found mid-implementation — all 5 live
+    dev DB rows had it `NULL`, more exposed than `avatar_url` since
+    `getUserByGoogleID` hits it on every returning-user login). Both
+    bundled into the same migration rather than filed separately — see
+    `docs/handoffs/PACK-031.md` and `LESSONS.md` (2026-08-01).
+  - **Status: Done.** See `docs/handoffs/PACK-031.md`.
 
 - **PACK-032** — OAuth callback: redirect to frontend instead of
   returning JSON. **Priority — blocks the frontend's sign-in ticket

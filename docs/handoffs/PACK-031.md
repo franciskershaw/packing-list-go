@@ -145,3 +145,7 @@ fixture pattern (`internal/repository/packing_list_test.go:113`).
   `TestInsertUser_OmittedColumnsDefaultToUsableValues` — all raw-SQL
   fixtures (mirroring `archivePackingListDirect`), since no real
   `GetOrCreateUser` call can ever pass `NULL`
+
+## Close-out
+
+Completed 2026-08-01. Retro entry in LESSONS.md.

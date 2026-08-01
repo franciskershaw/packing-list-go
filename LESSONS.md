@@ -412,3 +412,24 @@ project kickoff.
   working form has to actually read `.env`.
 - Demotion check: skipped — Epic 7 still has several open tickets
   (PACK-021/022/023/024/025/026/028/031), not a boundary.
+
+## 2026-08-01 — PACK-031 — `users` NOT NULL defaults shipped; scope grew twice, both caught before implementation drifted
+
+- Filed for `avatar_url` alone, but the interview found the live dev DB
+  already had `NULL` rows (not hypothetical), and `display_name` had the
+  identical gap — bundled in during `grill-me`. A third instance
+  (`last_login_at`, exposed on *every* returning-user login, not just
+  creation) surfaced later, mid-implementation, while writing the third
+  test — also bundled in, flagged and confirmed rather than assumed.
+- **Pattern**: when a "nullable column scanned into a non-nullable Go
+  field" bug is found in one column, check sibling columns on the same
+  table for the identical shape before scoping the fix narrowly — this is
+  now the second ticket (after the original PACK-030 discovery) where
+  that exact bug class recurred on a neighboring column.
+- Editing an already-applied migration file doesn't take effect until
+  explicitly rolled back and reapplied (`golang-migrate` only runs
+  pending versions) — bit us once when `last_login_at` was added to
+  `000004` after its first local apply. Worth remembering for any
+  migration touched more than once in the same session.
+- Demotion check: skipped — Epic 7 still has several open tickets
+  (PACK-021/022/023/024/025/026/028), not a boundary.
