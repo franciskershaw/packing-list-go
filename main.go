@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/franciskershaw/packing-list-go/config"
 	"github.com/franciskershaw/packing-list-go/db"
@@ -16,6 +22,9 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 )
+
+const tokenSweepInterval = time.Hour
+const shutdownGracePeriod = 10 * time.Second
 
 func main() {
 	// Match Gin's own default writer (os.Stdout) so log output interleaves in order.
@@ -53,6 +62,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(userRepo, oauthManager, refreshTokenRepo, cfg)
 
 	// Initialize Gin server
+	gin.SetMode(configureGinMode(cfg.Environment))
 	server := gin.Default()
 	server.Use(middleware.ErrorLogger())
 
@@ -115,8 +125,29 @@ func main() {
 		authed.POST("/lists/:id/unpack-all", packingListHandler.UnpackAll)
 	}
 
-	if err := server.Run(":" + cfg.Port); err != nil {
-		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
-		os.Exit(1)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go runTokenSweeper(ctx, refreshTokenRepo, tokenSweepInterval, &wg)
+
+	httpServer := newHTTPServer(":"+cfg.Port, server)
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("shutting down")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		fmt.Fprintf(os.Stderr, "graceful shutdown failed: %v\n", err)
 	}
+
+	wg.Wait()
 }

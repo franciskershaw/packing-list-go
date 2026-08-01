@@ -77,18 +77,18 @@ Key decisions from interview:
 
 ## Acceptance criteria
 
-- [ ] AC1 — `newHTTPServer` constructs `*http.Server` with
+- [x] AC1 — `newHTTPServer` constructs `*http.Server` with
       `ReadHeaderTimeout=5s`, `ReadTimeout=10s`, `WriteTimeout=15s`,
       `IdleTimeout=60s`; `main()` uses it (via `ListenAndServe` in a
       goroutine) instead of `server.Run()`.
-- [ ] AC2 — `configureGinMode(env string)` sets `gin.ReleaseMode` iff
+- [x] AC2 — `configureGinMode(env string)` sets `gin.ReleaseMode` iff
       `env == "production"`, else `gin.DebugMode`; called from `main()`
       with `cfg.Environment` before the Gin engine is constructed.
-- [ ] AC3 — `PostgresRefreshTokenRepository.DeleteAllStaleFamilies(ctx)
+- [x] AC3 — `PostgresRefreshTokenRepository.DeleteAllStaleFamilies(ctx)
       error` removes every revoked-or-expired `refresh_tokens` row across
       all users (repository layer — own commit, own review pause, before
       AC4).
-- [ ] AC4 — Graceful shutdown wired: `signal.NotifyContext` (SIGINT,
+- [x] AC4 — Graceful shutdown wired: `signal.NotifyContext` (SIGINT,
       SIGTERM) → on trigger, `httpServer.Shutdown` with a 10s grace
       context, then `wg.Wait()` for `runTokenSweeper` to stop, then the
       existing deferred `db.CloseDB()`. `runTokenSweeper` calls
@@ -147,3 +147,11 @@ Key decisions from interview:
   3. Temporarily lower the sweep interval locally (not committed), create
      a revoked/expired `refresh_tokens` row via the dev DB, observe it
      removed on the next tick.
+
+  **Verified** against the real dev DB: debug-mode log shows the full
+  `[GIN-debug]` route/warning banner, production-mode log shows neither;
+  `SIGTERM` mid-request drained cleanly and freed the port in both
+  cases; with the interval temporarily lowered to 2s, a manually-inserted
+  expired row went from a count of 1 to 0 within one tick, confirmed via
+  a throwaway in-module script (not committed) exercising the real
+  `DeleteAllStaleFamilies` path.
