@@ -39,10 +39,13 @@ seeded from a template — which they tick items off on as they pack.
 - **Stack**: Go, Gin, PostgreSQL (Neon), migrations as plain up/down SQL
   files in `db/migrations/`.
 - **Auth**: Google OAuth2/OIDC login. Custom JWT access token (15 min,
-  bearer header) + refresh token (7 day, httponly cookie). No server-side
-  session store or blacklist — logout only clears the refresh cookie; a
-  live access token remains valid until it naturally expires. See
-  `docs/handoffs/PACK-005.md`.
+  bearer header, stateless) + refresh token (sliding 7-day expiry,
+  httponly cookie). Refresh tokens rotate on every use and are DB-backed
+  (`refresh_tokens`, one row per login "family," overwritten in place on
+  rotation) — a token presented outside its current/grace-window hash is
+  reuse and revokes the whole family; `Logout` revokes server-side too,
+  not just cookie-clearing. See `docs/handoffs/PACK-005.md` (original
+  model) and `docs/handoffs/PACK-027.md` (rotation/reuse-detection).
 - **Repository pattern**: repository interfaces are defined in the
   `handler` package (consumer-defined), not in `repository`. Each
   `Postgres*Repository` in `internal/repository` implements the interface(s)
@@ -476,8 +479,16 @@ the numbering implies an order.)*
     full decision trail (family model, grace window, cleanup approach,
     a flagged `packing-list-react` follow-up for mid-session force-
     sign-out on revocation).
-  - **Status: not started.** See
-    `docs/handoffs/audit-2026-07-11-findings.md` item 9 (source finding).
+  - **Design reversal during implementation**: the interview's hash-only
+    family-lookup decision (no `jti` claim) was reversed after manual
+    verification against the real server showed a token more than one
+    rotation stale couldn't be traced to any family, so reuse beyond that
+    silently 401'd without ever revoking the live family. Fixed by
+    embedding a `familyId` claim in the JWT and looking up by ID instead
+    of hash — see the handoff doc and `LESSONS.md` (2026-08-01) for the
+    full account.
+  - **Status: Done.** See `docs/handoffs/PACK-027.md`. Source finding:
+    `docs/handoffs/audit-2026-07-11-findings.md` item 9.
 - **PACK-028** — Minor security/idiom cleanup.
   - Bundles: `email_verified` check, refresh-flow UUID/subject
     validation + JWT-secrets-distinct startup assertion,

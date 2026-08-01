@@ -265,3 +265,7 @@ finished ticket's doc, not a not-yet-implemented one.
   against a running server via curl (equivalent to the `.http` file,
   mirroring PACK-034's precedent) — including the multi-generation-stale
   replay that first exposed the hash-only lookup gap.
+
+## Close-out
+
+Completed 2026-08-01. Retro entry in LESSONS.md.

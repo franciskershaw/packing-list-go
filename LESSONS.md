@@ -380,3 +380,35 @@ project kickoff.
   Neon connection blip on the next fresh run, resolved on retry — neither
   related to the actual change.
 - Demotion check: skipped — Epic 7 still has open tickets, not a boundary.
+
+## 2026-08-01 — PACK-027 — Refresh token rotation shipped; hash-only reuse-detection design reversed mid-implementation after manual verification found a real gap
+
+- The interview locked in hash-only family lookup (explicitly rejecting a
+  `jti` claim as a redundant second source of truth) plus overwrite-in-place
+  storage (only the current + one previous hash retained). Each looked fine
+  answered on its own, but together they meant a token more than one
+  rotation stale couldn't be traced to any family at all — `RevokeFamily`
+  silently never fired, and the live family (and its real current cookie)
+  stayed fully valid. Caught by manual verification against the real
+  server, not by any mocked test — same pattern as PACK-030/032/033. Fixed
+  by embedding a `familyId` claim in the JWT and looking up by ID instead
+  of hash; the hash is now only used afterward to decide rotate-vs-revoke.
+- **Pattern**: when two design decisions each simplify a different axis of
+  the same feature (here: storage shape, and lookup strategy), explicitly
+  check their *composition* against the feature's worst-case scenario
+  before locking both in — not just each decision against the question
+  that prompted it. The grace-window question (Q3) framed reuse detection
+  around a same-second concurrent race, which crowded out ever asking
+  "does revocation still fire N generations later?" as its own question —
+  that framing effect is worth watching for in future multi-decision
+  interviews, not just this one.
+- Independent, smaller catch in the same verification pass:
+  `GenerateRefreshToken` could mint byte-identical tokens for same-second
+  calls (every claim was second-precision) — fixed with a `jti` uniqueness
+  nonce, unrelated to the family-ID fix above.
+- Environmental: the handoff doc's documented repo-test command
+  (`DATABASE_URL=$DATABASE_URL go test ...`) is a no-op if `DATABASE_URL`
+  isn't already exported — skips silently instead of failing loudly. The
+  working form has to actually read `.env`.
+- Demotion check: skipped — Epic 7 still has several open tickets
+  (PACK-021/022/023/024/025/026/028/031), not a boundary.
