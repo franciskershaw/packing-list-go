@@ -71,3 +71,39 @@ func TestGetUserByID_NotFound(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, user)
 }
+
+func TestInsertUser_NullAvatarURLRejected(t *testing.T) {
+	id := uuid.New()
+	_, err := db.DB.Exec(
+		`INSERT INTO users (id, google_id, email, display_name, avatar_url) VALUES ($1, $2, $3, $4, NULL)`,
+		id, "repo-test-google-"+id.String(), "repo-test-"+id.String()+"@example.com", "Test User",
+	)
+	assert.Error(t, err, "expected a NOT NULL constraint to reject a NULL avatar_url")
+}
+
+func TestInsertUser_NullDisplayNameRejected(t *testing.T) {
+	id := uuid.New()
+	_, err := db.DB.Exec(
+		`INSERT INTO users (id, google_id, email, display_name, avatar_url) VALUES ($1, $2, $3, NULL, $4)`,
+		id, "repo-test-google-"+id.String(), "repo-test-"+id.String()+"@example.com", "http://example.com/avatar.png",
+	)
+	assert.Error(t, err, "expected a NOT NULL constraint to reject a NULL display_name")
+}
+
+func TestInsertUser_OmittedColumnsDefaultToEmptyString(t *testing.T) {
+	ctx := context.Background()
+	id := uuid.New()
+
+	_, err := db.DB.Exec(
+		`INSERT INTO users (id, google_id, email) VALUES ($1, $2, $3)`,
+		id, "repo-test-google-"+id.String(), "repo-test-"+id.String()+"@example.com",
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, id) })
+
+	fetched, err := userRepo.GetUserByID(ctx, id.String())
+	require.NoError(t, err)
+	require.NotNil(t, fetched)
+	assert.Equal(t, "", fetched.AvatarURL)
+	assert.Equal(t, "", fetched.DisplayName)
+}
