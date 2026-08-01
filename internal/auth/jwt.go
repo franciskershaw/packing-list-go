@@ -14,6 +14,15 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
+// RefreshClaims carries the refresh_tokens family ID (PACK-027) so a
+// presented token can always be traced back to its family, however many
+// rotations stale it is — not just when it happens to still match the
+// row's current or previous hash.
+type RefreshClaims struct {
+	FamilyID string `json:"familyId"`
+	jwt.RegisteredClaims
+}
+
 const (
 	accessTokenExpiry  = 15 * time.Minute
 	refreshTokenExpiry = 7 * 24 * time.Hour
@@ -31,14 +40,17 @@ func GenerateAccessToken(email string, userID string, secret string) (string, er
 	return signToken(claims, secret)
 }
 
-func GenerateRefreshToken(userID string, secret string) (string, error) {
-	claims := jwt.RegisteredClaims{
-		Subject: userID,
-		// ID avoids collisions when two tokens are issued for the same user
-		// within the same second (other claims are second-precision).
-		ID:        uuid.NewString(),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpiry)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
+func GenerateRefreshToken(userID, familyID, secret string) (string, error) {
+	claims := RefreshClaims{
+		FamilyID: familyID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: userID,
+			// ID avoids collisions when two tokens are issued for the same
+			// family within the same second (other claims are second-precision).
+			ID:        uuid.NewString(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
 	}
 	return signToken(claims, secret)
 }
@@ -62,8 +74,8 @@ func ValidateAccessToken(tokenString string, secret string) (*CustomClaims, erro
 	return claims, nil
 }
 
-func ValidateRefreshToken(tokenString string, secret string) (*jwt.RegisteredClaims, error) {
-	claims := &jwt.RegisteredClaims{}
+func ValidateRefreshToken(tokenString string, secret string) (*RefreshClaims, error) {
+	claims := &RefreshClaims{}
 	if err := parseToken(tokenString, secret, claims); err != nil {
 		return nil, err
 	}

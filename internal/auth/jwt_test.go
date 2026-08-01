@@ -32,7 +32,7 @@ func TestGenerateAccessToken(t *testing.T) {
 }
 
 func TestRefreshToken(t *testing.T) {
-	token, err := GenerateRefreshToken("user-123", testRefreshSecret)
+	token, err := GenerateRefreshToken("user-123", "family-456", testRefreshSecret)
 	if err != nil {
 		t.Errorf("GenerateRefreshToken failed: %v", err)
 	}
@@ -49,6 +49,10 @@ func TestRefreshToken(t *testing.T) {
 	if claims.Subject != "user-123" {
 		t.Errorf("expected Subject user-123, got %s", claims.Subject)
 	}
+
+	if claims.FamilyID != "family-456" {
+		t.Errorf("expected FamilyID family-456, got %s", claims.FamilyID)
+	}
 }
 
 func TestGenerateAccessToken_EmptySecret(t *testing.T) {
@@ -59,7 +63,7 @@ func TestGenerateAccessToken_EmptySecret(t *testing.T) {
 }
 
 func TestGenerateRefreshToken_EmptySecret(t *testing.T) {
-	_, err := GenerateRefreshToken("user-123", "")
+	_, err := GenerateRefreshToken("user-123", "family-456", "")
 	if err == nil {
 		t.Error("expected error for empty secret, got nil")
 	}
@@ -78,7 +82,7 @@ func TestValidateAccessToken_EmptySecret(t *testing.T) {
 }
 
 func TestValidateRefreshToken_EmptySecret(t *testing.T) {
-	token, err := GenerateRefreshToken("user-123", testRefreshSecret)
+	token, err := GenerateRefreshToken("user-123", "family-456", testRefreshSecret)
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}

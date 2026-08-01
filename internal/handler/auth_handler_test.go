@@ -90,16 +90,16 @@ type MockRefreshTokenRepository struct {
 	mock.Mock
 }
 
-func (m *MockRefreshTokenRepository) CreateFamily(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error) {
-	args := m.Called(ctx, userID, tokenHash, expiresAt)
+func (m *MockRefreshTokenRepository) CreateFamily(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error) {
+	args := m.Called(ctx, id, userID, tokenHash, expiresAt)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.RefreshTokenFamily), args.Error(1)
 }
 
-func (m *MockRefreshTokenRepository) FindFamilyByHash(ctx context.Context, userID, tokenHash string) (*models.RefreshTokenFamily, error) {
-	args := m.Called(ctx, userID, tokenHash)
+func (m *MockRefreshTokenRepository) FindFamilyByID(ctx context.Context, id, userID string) (*models.RefreshTokenFamily, error) {
+	args := m.Called(ctx, id, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -183,7 +183,7 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
 	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
 	refreshTokenRepo.On("DeleteStaleFamiliesForUser", mock.Anything, user.ID.String()).Return(nil)
-	refreshTokenRepo.On("CreateFamily", mock.Anything, user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
+	refreshTokenRepo.On("CreateFamily", mock.Anything, mock.AnythingOfType("string"), user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
 		Return(&models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID}, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -235,7 +235,7 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
 	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
 	refreshTokenRepo.On("DeleteStaleFamiliesForUser", mock.Anything, user.ID.String()).Return(nil)
-	refreshTokenRepo.On("CreateFamily", mock.Anything, user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
+	refreshTokenRepo.On("CreateFamily", mock.Anything, mock.AnythingOfType("string"), user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
 		Return(&models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID}, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("production"))
@@ -283,7 +283,7 @@ func TestGoogleCallback_CreatesFamilyAndSweepsStale(t *testing.T) {
 	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
 	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
 	refreshTokenRepo.On("DeleteStaleFamiliesForUser", mock.Anything, user.ID.String()).Return(nil)
-	refreshTokenRepo.On("CreateFamily", mock.Anything, user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
+	refreshTokenRepo.On("CreateFamily", mock.Anything, mock.AnythingOfType("string"), user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
 		Return(&models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID}, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -364,14 +364,15 @@ func TestRefreshToken_ValidCookie(t *testing.T) {
 	oauthMgr := &MockOAuthManager{}
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
+	familyID := uuid.New()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 
-	family := &models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
+	family := &models.RefreshTokenFamily{ID: familyID, UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 	refreshTokenRepo.On("RotateFamily", mock.Anything, family.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil)
 
@@ -399,14 +400,15 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	oauthMgr := &MockOAuthManager{}
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
+	familyID := uuid.New()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 
-	family := &models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
+	family := &models.RefreshTokenFamily{ID: familyID, UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -433,14 +435,15 @@ func TestRefreshToken_UserLookupError(t *testing.T) {
 	oauthMgr := &MockOAuthManager{}
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
+	familyID := uuid.New()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 
-	family := &models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
+	family := &models.RefreshTokenFamily{ID: familyID, UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, errors.New("db error"))
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -499,11 +502,11 @@ func TestRefreshToken_RotatesOnCurrentHash(t *testing.T) {
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	familyID := uuid.New()
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
-	familyID := uuid.New()
 	family := &models.RefreshTokenFamily{
 		ID:        familyID,
 		UserID:    user.ID,
@@ -511,7 +514,7 @@ func TestRefreshToken_RotatesOnCurrentHash(t *testing.T) {
 	}
 
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil)
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 	refreshTokenRepo.On("RotateFamily", mock.Anything, familyID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -549,13 +552,13 @@ func TestRefreshToken_RotatesWithinGraceWindowOnPreviousHash(t *testing.T) {
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
 
-	staleToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	familyID := uuid.New()
+	staleToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 	rotatedAt := time.Now().Add(-2 * time.Second) // within the 10s grace window
 	previousHash := hashRefreshToken(staleToken)
-	familyID := uuid.New()
 	family := &models.RefreshTokenFamily{
 		ID:                     familyID,
 		UserID:                 user.ID,
@@ -565,7 +568,7 @@ func TestRefreshToken_RotatesWithinGraceWindowOnPreviousHash(t *testing.T) {
 	}
 
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil)
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), previousHash).Return(family, nil)
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 	refreshTokenRepo.On("RotateFamily", mock.Anything, familyID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -588,13 +591,13 @@ func TestRefreshToken_RevokesOnStaleReuseOutsideGraceWindow(t *testing.T) {
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
 
-	staleToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	familyID := uuid.New()
+	staleToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 	rotatedAt := time.Now().Add(-30 * time.Second) // outside the 10s grace window
 	previousHash := hashRefreshToken(staleToken)
-	familyID := uuid.New()
 	family := &models.RefreshTokenFamily{
 		ID:                     familyID,
 		UserID:                 user.ID,
@@ -606,7 +609,7 @@ func TestRefreshToken_RevokesOnStaleReuseOutsideGraceWindow(t *testing.T) {
 	// .Maybe(): the handler rejects before user lookup, so this shouldn't
 	// be called — .Maybe() just avoids a testify panic if that regresses.
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil).Maybe()
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), previousHash).Return(family, nil)
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 	refreshTokenRepo.On("RevokeFamily", mock.Anything, familyID.String()).Return(nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -628,13 +631,14 @@ func TestRefreshToken_RejectsAlreadyRevokedFamily(t *testing.T) {
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	familyID := uuid.New()
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 	revokedAt := time.Now().Add(-time.Minute)
 	family := &models.RefreshTokenFamily{
-		ID:        uuid.New(),
+		ID:        familyID,
 		UserID:    user.ID,
 		TokenHash: hashRefreshToken(refreshToken),
 		RevokedAt: &revokedAt,
@@ -642,13 +646,55 @@ func TestRefreshToken_RejectsAlreadyRevokedFamily(t *testing.T) {
 
 	// .Maybe(): see TestRefreshToken_RevokesOnStaleReuseOutsideGraceWindow.
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil).Maybe()
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 	req.AddCookie(&http.Cookie{Name: "refreshToken", Value: refreshToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	refreshTokenRepo.AssertExpectations(t)
+}
+
+// TestRefreshToken_RevokesOnMultiGenerationStaleReuse covers the gap manual
+// verification found: a token whose hash matches neither the family's
+// current nor previous hash (2+ rotations stale) must still resolve to its
+// family via the familyId claim and get revoked — not silently 401 with the
+// live family left untouched.
+func TestRefreshToken_RevokesOnMultiGenerationStaleReuse(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	refreshTokenRepo := &MockRefreshTokenRepository{}
+	user := testUser()
+
+	familyID := uuid.New()
+	staleToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
+	if err != nil {
+		t.Fatalf("failed to generate refresh token: %v", err)
+	}
+	currentHash := "repo-current-hash-not-presented"
+	previousHash := "repo-previous-hash-not-presented"
+	family := &models.RefreshTokenFamily{
+		ID:                familyID,
+		UserID:            user.ID,
+		TokenHash:         currentHash,
+		PreviousTokenHash: &previousHash,
+	}
+
+	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil).Maybe()
+	refreshTokenRepo.On("FindFamilyByID", mock.Anything, familyID.String(), user.ID.String()).Return(family, nil)
+	refreshTokenRepo.On("RevokeFamily", mock.Anything, familyID.String()).Return(nil)
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refreshToken", Value: staleToken})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -699,14 +745,12 @@ func TestLogout_RevokesMatchingFamily(t *testing.T) {
 	refreshTokenRepo := &MockRefreshTokenRepository{}
 	user := testUser()
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), testutil.TestJWTSecretRefresh)
+	familyID := uuid.New()
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID.String(), testutil.TestJWTSecretRefresh)
 	if err != nil {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
-	familyID := uuid.New()
-	family := &models.RefreshTokenFamily{ID: familyID, UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
 
-	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
 	refreshTokenRepo.On("RevokeFamily", mock.Anything, familyID.String()).Return(nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))

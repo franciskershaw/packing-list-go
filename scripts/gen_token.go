@@ -2,19 +2,24 @@
 
 // Generates a JWT access token for manual API testing against a local server
 // and writes it into .env as DEV_TOKEN, so the requests/*.http files can
-// pick it up via {{$dotenv DEV_TOKEN}} without any manual copy-paste.
+// pick it up via {{$dotenv DEV_TOKEN}} without any manual copy-paste. Also
+// generates a refresh token and its matching refresh_tokens row (PACK-027),
+// written to .env as DEV_REFRESH_TOKEN, so requests/auth.http can seed a
+// refresh-cookie session without a real Google OAuth round-trip.
 //
 // Usage:
 //
 //	go run scripts/gen_token.go
 //
-// Requires JWT_SECRET_ACCESS in .env (loaded automatically).
-// Also requires DATABASE_URL — upserts a stable dev user so the token's userId
-// satisfies the FK constraint on categories.user_id.
+// Requires JWT_SECRET_ACCESS and JWT_SECRET_REFRESH in .env (loaded
+// automatically). Also requires DATABASE_URL — upserts a stable dev user so
+// the token's userId satisfies the FK constraint on categories.user_id.
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -51,6 +56,12 @@ func main() {
 	jwtSecret := os.Getenv("JWT_SECRET_ACCESS")
 	if jwtSecret == "" {
 		fmt.Fprintln(os.Stderr, "error: JWT_SECRET_ACCESS not set")
+		os.Exit(1)
+	}
+
+	jwtSecretRefresh := os.Getenv("JWT_SECRET_REFRESH")
+	if jwtSecretRefresh == "" {
+		fmt.Fprintln(os.Stderr, "error: JWT_SECRET_REFRESH not set")
 		os.Exit(1)
 	}
 
@@ -95,8 +106,38 @@ func main() {
 		fmt.Println(token)
 		return
 	}
-
 	fmt.Println("DEV_TOKEN written to .env")
+
+	familyID := uuid.NewString()
+	refreshToken, err := auth.GenerateRefreshToken(userID.String(), familyID, jwtSecretRefresh)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "refresh token error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Drop any prior dev refresh_tokens rows so this run's family is the
+	// only one live for the dev user — old rows would just be dead weight.
+	if _, err := db.Exec(`DELETE FROM refresh_tokens WHERE user_id = $1`, userID); err != nil {
+		fmt.Fprintf(os.Stderr, "cleanup refresh_tokens error: %v\n", err)
+		os.Exit(1)
+	}
+
+	sum := sha256.Sum256([]byte(refreshToken))
+	tokenHash := hex.EncodeToString(sum[:])
+	if _, err := db.Exec(
+		`INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`,
+		familyID, userID, tokenHash, time.Now().Add(7*24*time.Hour),
+	); err != nil {
+		fmt.Fprintf(os.Stderr, "insert refresh_tokens error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := upsertEnvVar(".env", "DEV_REFRESH_TOKEN", refreshToken); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to write DEV_REFRESH_TOKEN to .env: %v\n", err)
+		fmt.Println(refreshToken)
+		return
+	}
+	fmt.Println("DEV_REFRESH_TOKEN written to .env")
 }
 
 // upsertEnvVar replaces the line "key=..." in the file at path with

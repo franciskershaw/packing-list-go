@@ -18,13 +18,16 @@ func NewPostgresRefreshTokenRepository(db *sql.DB) *PostgresRefreshTokenReposito
 	return &PostgresRefreshTokenRepository{db: db}
 }
 
-func (r *PostgresRefreshTokenRepository) CreateFamily(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error) {
+// CreateFamily takes an explicit id (the caller generates it) rather than
+// relying on the DB default — the id must be known before this call so it
+// can be embedded in the refresh token's familyId claim (PACK-027).
+func (r *PostgresRefreshTokenRepository) CreateFamily(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error) {
 	query := `
-		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, user_id, token_hash, previous_token_hash, previous_token_rotated_at, expires_at, revoked_at, created_at
 	`
-	row := r.db.QueryRowContext(ctx, query, userID, tokenHash, expiresAt)
+	row := r.db.QueryRowContext(ctx, query, id, userID, tokenHash, expiresAt)
 	family, err := scanRefreshTokenFamily(row.Scan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create refresh token family: %w", err)
@@ -32,15 +35,16 @@ func (r *PostgresRefreshTokenRepository) CreateFamily(ctx context.Context, userI
 	return family, nil
 }
 
-// FindFamilyByHash matches either the current or the previous hash — a
-// grace-window refresh still needs to find its family.
-func (r *PostgresRefreshTokenRepository) FindFamilyByHash(ctx context.Context, userID, tokenHash string) (*models.RefreshTokenFamily, error) {
+// FindFamilyByID looks up a family by its id (from the token's familyId
+// claim), not by hash — so a family is always found regardless of how many
+// rotations stale the presented token is, letting reuse always be revoked.
+func (r *PostgresRefreshTokenRepository) FindFamilyByID(ctx context.Context, id, userID string) (*models.RefreshTokenFamily, error) {
 	query := `
 		SELECT id, user_id, token_hash, previous_token_hash, previous_token_rotated_at, expires_at, revoked_at, created_at
 		FROM refresh_tokens
-		WHERE user_id = $1 AND (token_hash = $2 OR previous_token_hash = $2)
+		WHERE id = $1 AND user_id = $2
 	`
-	row := r.db.QueryRowContext(ctx, query, userID, tokenHash)
+	row := r.db.QueryRowContext(ctx, query, id, userID)
 	family, err := scanRefreshTokenFamily(row.Scan)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -8,9 +8,10 @@
 # Token and host resolve automatically from .env — see requests/README.md
 # for how that works. No variables to paste in this file.
 #
-# Only GET /me is covered here. Login/callback need a real browser
-# round-trip and refresh/logout are cookie-based automation not built yet
-# — see requests/README.md's "what's deliberately not covered" section.
+# GET /me, and /auth/refresh + /auth/logout's rotation/reuse-detection
+# behavior (PACK-027), are covered here. Login/callback still need a real
+# browser round-trip and aren't — see requests/README.md's "what's
+# deliberately not covered" section.
 
 
 # ══════════════════════════════════════════
@@ -25,3 +26,52 @@ Authorization: Bearer {{$dotenv DEV_TOKEN}}
 
 ### 🔒 401 — no token
 GET http://localhost:{{$dotenv PORT}}/me
+
+
+# ══════════════════════════════════════════
+#  POST /auth/refresh — rotation & reuse detection (PACK-027)
+#
+#  Run top-to-bottom, once. Relies on REST Client's cookie jar
+#  (rest-client.rememberCookiesForSubsequentRequests, on by default) to
+#  carry each rotated cookie into the next request automatically.
+# ══════════════════════════════════════════
+
+### ✅ 200 — seeded via the dev refresh token cookie; rotates it
+POST http://localhost:{{$dotenv PORT}}/auth/refresh
+Cookie: refreshToken={{$dotenv DEV_REFRESH_TOKEN}}
+
+###
+
+### ✅ 200 — using the jar's rotated cookie; proves rotation keeps working
+POST http://localhost:{{$dotenv PORT}}/auth/refresh
+
+###
+
+### 🔒 401 — replaying the original (now-stale) token is reuse, not a refresh
+POST http://localhost:{{$dotenv PORT}}/auth/refresh
+Cookie: refreshToken={{$dotenv DEV_REFRESH_TOKEN}}
+
+###
+
+### 🔒 401 — reuse killed the whole family; even the jar's current cookie now fails
+POST http://localhost:{{$dotenv PORT}}/auth/refresh
+
+
+# ══════════════════════════════════════════
+#  POST /auth/logout — server-side revocation (PACK-027)
+#
+#  Setup: re-run `go run scripts/gen_token.go` first — the section above
+#  killed the dev family, so this needs a fresh one. No separate cleanup
+#  section: gen_token.go deletes the dev user's prior refresh_tokens rows
+#  on every run.
+# ══════════════════════════════════════════
+
+### ✅ 200 — logout revokes the family server-side
+POST http://localhost:{{$dotenv PORT}}/auth/logout
+Cookie: refreshToken={{$dotenv DEV_REFRESH_TOKEN}}
+
+###
+
+### 🔒 401 — refresh after logout fails: revoked server-side, not just cookie-cleared
+POST http://localhost:{{$dotenv PORT}}/auth/refresh
+Cookie: refreshToken={{$dotenv DEV_REFRESH_TOKEN}}

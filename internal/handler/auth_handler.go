@@ -12,6 +12,7 @@ import (
 	"github.com/franciskershaw/packing-list-go/internal/auth"
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
 
@@ -33,8 +34,8 @@ type UserRepository interface {
 
 // RefreshTokenRepository backs PACK-027's rotation-with-reuse-detection scheme.
 type RefreshTokenRepository interface {
-	CreateFamily(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error)
-	FindFamilyByHash(ctx context.Context, userID, tokenHash string) (*models.RefreshTokenFamily, error)
+	CreateFamily(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) (*models.RefreshTokenFamily, error)
+	FindFamilyByID(ctx context.Context, id, userID string) (*models.RefreshTokenFamily, error)
 	RotateFamily(ctx context.Context, familyID, newTokenHash string, newExpiresAt time.Time) error
 	RevokeFamily(ctx context.Context, familyID string) error
 	DeleteStaleFamiliesForUser(ctx context.Context, userID string) error
@@ -116,7 +117,8 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), h.cfg.JWTSecretRefresh)
+	familyID := uuid.NewString()
+	refreshToken, err := auth.GenerateRefreshToken(user.ID.String(), familyID, h.cfg.JWTSecretRefresh)
 	if err != nil {
 		internalError(c, "failed to generate refresh token", err)
 		return
@@ -126,7 +128,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		internalError(c, "failed to clean up refresh tokens", err)
 		return
 	}
-	if _, err := h.refreshTokenRepo.CreateFamily(ctx, user.ID.String(), hashRefreshToken(refreshToken), time.Now().Add(refreshTokenTTL)); err != nil {
+	if _, err := h.refreshTokenRepo.CreateFamily(ctx, familyID, user.ID.String(), hashRefreshToken(refreshToken), time.Now().Add(refreshTokenTTL)); err != nil {
 		internalError(c, "failed to persist refresh token", err)
 		return
 	}
@@ -153,8 +155,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	hash := hashRefreshToken(refreshToken)
-	family, err := h.refreshTokenRepo.FindFamilyByHash(ctx, claims.Subject, hash)
+	family, err := h.refreshTokenRepo.FindFamilyByID(ctx, claims.FamilyID, claims.Subject)
 	if err != nil {
 		internalError(c, "failed to look up refresh token", err)
 		return
@@ -164,8 +165,11 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Previous-hash match within the grace window is a benign multi-tab
-	// race, not reuse; anything else here is reuse — kill the family.
+	// Found by family id, not by hash, so this always resolves to a real
+	// family to kill — not just when the reuse happens to be one rotation
+	// stale. Previous-hash match within the grace window is a benign
+	// multi-tab race, not reuse; anything else here is reuse.
+	hash := hashRefreshToken(refreshToken)
 	matchedCurrent := hash == family.TokenHash
 	if !matchedCurrent {
 		matchedPreviousInWindow := family.PreviousTokenHash != nil && hash == *family.PreviousTokenHash &&
@@ -190,7 +194,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	newRefreshToken, err := auth.GenerateRefreshToken(user.ID.String(), h.cfg.JWTSecretRefresh)
+	newRefreshToken, err := auth.GenerateRefreshToken(user.ID.String(), family.ID.String(), h.cfg.JWTSecretRefresh)
 	if err != nil {
 		internalError(c, "failed to generate token", err)
 		return
@@ -215,15 +219,8 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	if refreshToken, err := c.Cookie("refreshToken"); err == nil {
 		if claims, err := auth.ValidateRefreshToken(refreshToken, h.cfg.JWTSecretRefresh); err == nil {
-			ctx := context.Background()
-			hash := hashRefreshToken(refreshToken)
-			family, err := h.refreshTokenRepo.FindFamilyByHash(ctx, claims.Subject, hash)
-			if err != nil {
-				_ = c.Error(fmt.Errorf("failed to look up refresh token family during logout: %w", err))
-			} else if family != nil {
-				if err := h.refreshTokenRepo.RevokeFamily(ctx, family.ID.String()); err != nil {
-					_ = c.Error(fmt.Errorf("failed to revoke refresh token family during logout: %w", err))
-				}
+			if err := h.refreshTokenRepo.RevokeFamily(context.Background(), claims.FamilyID); err != nil {
+				_ = c.Error(fmt.Errorf("failed to revoke refresh token family during logout: %w", err))
 			}
 		}
 	}

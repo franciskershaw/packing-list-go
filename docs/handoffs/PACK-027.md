@@ -36,14 +36,25 @@ finished ticket's doc, not a not-yet-implemented one.
   stdlib `crypto/sha256`) of the token string, since the token is already
   high-entropy (unlike a user-chosen secret, no need for a slow/salted
   hash).
-- **No family ID embedded in the JWT.** `internal/auth/jwt.go` is
-  unchanged — `GenerateRefreshToken`/`ValidateRefreshToken` keep their
-  current signatures. The family is found purely by hashing the presented
-  token and looking it up against `refresh_tokens.token_hash` /
-  `previous_token_hash`, scoped by `user_id` (from the JWT's existing
-  `Subject` claim). Considered embedding a `jti` family ID in the claims
-  instead — rejected as a redundant second source of truth; the hash
-  comparison does the real security work either way.
+- **Family ID *is* embedded in the JWT (`familyId` claim) — reversed
+  mid-implementation.** Originally decided against this (hash-only lookup,
+  to avoid a second source of truth). Manual verification against the real
+  server caught why that's insufficient: with only `token_hash`/
+  `previous_token_hash` stored, a token more than one rotation stale
+  matches neither, `FindFamilyByHash` returns nothing, and
+  `RevokeFamily` never gets called — reuse of a 2+-generations-stale token
+  silently 401s while the live family (and its actual current cookie)
+  stays completely valid. That's a materially weaker guarantee than "reuse
+  of a stale token kills the family," the literal phrase from the audit
+  finding this ticket implements. Fix: `internal/auth/jwt.go` gained a
+  `RefreshClaims{FamilyID string; jwt.RegisteredClaims}` type;
+  `GenerateRefreshToken`/`ValidateRefreshToken` now take/return it. The
+  repository's `FindFamilyByHash` was replaced with `FindFamilyByID(ctx,
+  id, userID)`, so a family is always found by its id regardless of how
+  stale the presented hash is — the hash is only used afterward, in Go, to
+  decide rotate-vs-revoke. Confirmed against the live server: replaying a
+  2-generations-stale token now correctly revokes the family and a
+  previously-valid current cookie is rejected immediately after.
 - **Grace window for concurrent legitimate refreshes: 10 seconds.** The
   frontend's `client.ts` already de-dupes concurrent refresh calls
   *within* a tab (`refreshPromise` singleton), but nothing coordinates
@@ -135,18 +146,19 @@ finished ticket's doc, not a not-yet-implemented one.
 **Repository layer (own commit, pause for review before the handler layer
 — per this project's layer-by-layer implementation rule):**
 
-- [ ] Migration `000003_refresh_tokens` creates the `refresh_tokens` table
+- [x] Migration `000003_refresh_tokens` creates the `refresh_tokens` table
       (`id`, `user_id` FK `ON DELETE CASCADE`, `token_hash`,
       `previous_token_hash`, `previous_token_rotated_at`, `expires_at`,
       `revoked_at`, `created_at`) plus an index on `user_id`
-- [ ] `RefreshTokenRepository` interface (defined in `handler`, per this
+- [x] `RefreshTokenRepository` interface (defined in `handler`, per this
       project's consumer-defined-interface convention) with:
-      `CreateFamily(ctx, userID, tokenHash string, expiresAt time.Time)
-      (*models.RefreshTokenFamily, error)`;
-      `FindFamilyByHash(ctx, userID, tokenHash string)
-      (*models.RefreshTokenFamily, error)` — matches `token_hash` OR
-      `previous_token_hash`, scoped to `user_id`, returns `nil, nil` if no
-      row matches (mirrors `GetCategoryByID`'s not-found convention);
+      `CreateFamily(ctx, id, userID, tokenHash string, expiresAt time.Time)
+      (*models.RefreshTokenFamily, error)` — `id` is caller-generated, not
+      DB-default, since it must be known before minting the token that
+      embeds it; `FindFamilyByID(ctx, id, userID string)
+      (*models.RefreshTokenFamily, error)` — looks up by id (from the
+      token's `familyId` claim), not by hash, returns `nil, nil` if no row
+      matches (mirrors `GetCategoryByID`'s not-found convention);
       `RotateFamily(ctx, familyID, newTokenHash string, newExpiresAt
       time.Time) error` — shifts current hash into `previous_token_hash`
       (+ sets `previous_token_rotated_at`) and sets the new hash/expiry in
@@ -154,53 +166,57 @@ finished ticket's doc, not a not-yet-implemented one.
       `revoked_at`; `DeleteStaleFamiliesForUser(ctx, userID string) error`
       — deletes rows for that user where `revoked_at IS NOT NULL OR
       expires_at < now()`
-- [ ] `PostgresRefreshTokenRepository` in `internal/repository` implements
+- [x] `PostgresRefreshTokenRepository` in `internal/repository` implements
       the above
-- [ ] Integration test confirms `RotateFamily` correctly preserves the
+- [x] Integration test confirms `RotateFamily` correctly preserves the
       prior hash/timestamp in `previous_token_hash`/
       `previous_token_rotated_at` (not just overwriting them silently)
-- [ ] Integration test confirms `FindFamilyByHash` matches both the
-      current and the previous hash for the same family, and returns
-      `nil, nil` for an unrelated hash
-- [ ] Integration test confirms `DeleteStaleFamiliesForUser` removes only
+- [x] Integration test confirms `FindFamilyByID` returns the family for its
+      own id/user, `nil, nil` for an unknown id, and `nil, nil` for a
+      correct id under the wrong user
+- [x] Integration test confirms `DeleteStaleFamiliesForUser` removes only
       revoked/expired rows for the given user, leaving active families
       (for that user and others) untouched
 
 **Handler layer:**
 
-- [ ] `GoogleCallback` calls `DeleteStaleFamiliesForUser` for the user,
-      then `CreateFamily` with the hash of the refresh token it issues
-      (replacing the current bare `GenerateRefreshToken`-and-set-cookie
-      flow, which stays for token generation itself — only the
-      persistence step is new)
-- [ ] `RefreshToken` hashes the presented cookie token and calls
-      `FindFamilyByHash`. Not found, or found with `revoked_at` already
-      set → 401, generic error body (same shape as today's "invalid
-      refresh token")
-- [ ] Hash matches `token_hash` → rotate: generate + hash a new refresh
-      token, `RotateFamily`, set the new refresh cookie, issue a new
-      access token, `200` (unchanged response shape:
+- [x] `internal/auth/jwt.go`: `RefreshClaims{FamilyID string;
+      jwt.RegisteredClaims}`; `GenerateRefreshToken(userID, familyID,
+      secret)` / `ValidateRefreshToken` return `*RefreshClaims`
+- [x] `GoogleCallback` generates a family id (`uuid.NewString()`), mints
+      the refresh token with it embedded, calls
+      `DeleteStaleFamiliesForUser` for the user, then `CreateFamily` with
+      that same id and the token's hash
+- [x] `RefreshToken` looks up the family by `claims.FamilyID` +
+      `claims.Subject` via `FindFamilyByID`. Not found, or found with
+      `revoked_at` already set → 401, generic error body (same shape as
+      today's "invalid refresh token")
+- [x] Hash matches `token_hash` → rotate: generate + hash a new refresh
+      token (same family id), `RotateFamily`, set the new refresh cookie,
+      issue a new access token, `200` (unchanged response shape:
       `{"accessToken": "..."}`)
-- [ ] Hash matches `previous_token_hash` within the 10s grace window →
+- [x] Hash matches `previous_token_hash` within the 10s grace window →
       same rotation path as above (not flagged, not distinguished in the
       response)
-- [ ] Hash matches `previous_token_hash` outside the 10s grace window →
-      `RevokeFamily`, 401
-- [ ] A revoked family's token immediately fails on any subsequent
+- [x] Any other case (hash matches `previous_token_hash` outside the grace
+      window, **or matches neither hash at all** — a token from 2+
+      rotations ago) → `RevokeFamily`, 401. The "matches neither" branch is
+      the fix for the gap manual verification found — see the Context
+      section above
+- [x] A revoked family's token immediately fails on any subsequent
       `/auth/refresh` call, not just the triggering one
-- [ ] `Logout` reads the refresh cookie (if present and valid), hashes it,
-      looks up and revokes the matching family, then clears the cookie as
-      today. A missing or invalid cookie doesn't error — still clears the
-      cookie and returns `200`, same as current behavior
-- [ ] `main.go` wiring: `NewAuthHandler` takes the new
+- [x] `Logout` decodes the refresh cookie's `familyId` claim (if present
+      and validly signed) and revokes that family directly — no lookup
+      step needed, since revoking a nonexistent/already-revoked id is a
+      harmless no-op. A missing or invalid cookie doesn't error — still
+      clears the cookie and returns `200`, same as current behavior
+- [x] `main.go` wiring: `NewAuthHandler` takes the new
       `RefreshTokenRepository`; route table unchanged (no new routes)
 
 ## Non-goals
 
 - No ADR (see design-gate finding above — existing "Key architecture
   decisions" precedent used instead, updated at close-out)
-- No `jti`/family-ID claim in the JWT — hash-only lookup (see decision
-  above); `internal/auth/jwt.go` untouched
 - No absolute session-lifetime cap — sliding window only
 - No distinct wire-contract signal for reuse-detected vs. any other
   invalid-refresh-token case — both return the same generic 401
@@ -215,23 +231,27 @@ finished ticket's doc, not a not-yet-implemented one.
 
 ## Expected test files
 
-- `internal/repository/refresh_token_test.go` — new (integration, against
+- `internal/repository/refresh_token_test.go` — (integration, against
   the real Neon dev DB per this project's convention):
-  `TestCreateFamily_PersistsRow`,
-  `TestFindFamilyByHash_MatchesCurrentAndPreviousHash`,
-  `TestFindFamilyByHash_ReturnsNilForUnknownHash`,
+  `TestCreateFamily_PersistsRow`, `TestFindFamilyByID_ReturnsFamily`,
+  `TestFindFamilyByID_ReturnsNilForUnknownID`,
+  `TestFindFamilyByID_ReturnsNilForWrongUser`,
   `TestRotateFamily_ShiftsCurrentIntoPrevious`,
   `TestRevokeFamily_SetsRevokedAt`,
   `TestDeleteStaleFamiliesForUser_RemovesOnlyRevokedOrExpiredForThatUser`
-- `internal/handler/auth_handler_test.go` — extend existing file (mocked
+- `internal/handler/auth_handler_test.go` — extended existing file (mocked
   `RefreshTokenRepository` via `testify/mock`, per this project's
   override): `TestRefreshToken_RotatesOnCurrentHash`,
   `TestRefreshToken_RotatesWithinGraceWindowOnPreviousHash`,
   `TestRefreshToken_RevokesOnStaleReuseOutsideGraceWindow`,
   `TestRefreshToken_RejectsAlreadyRevokedFamily`,
+  `TestRefreshToken_RevokesOnMultiGenerationStaleReuse` (added after
+  manual verification caught the gap it covers),
   `TestGoogleCallback_CreatesFamilyAndSweepsStale`,
   `TestLogout_RevokesMatchingFamily`,
   `TestLogout_ClearsCookieEvenWithoutValidRefreshToken`
+- `internal/auth/jwt_test.go` — extended `TestRefreshToken` to assert the
+  new `FamilyID` claim round-trips
 - `scripts/gen_token.go` — extended to also seed a `refresh_tokens` row
   and write `DEV_REFRESH_TOKEN` to `.env` (not itself a test file, but
   required setup for the manual verification below)
@@ -241,4 +261,7 @@ finished ticket's doc, not a not-yet-implemented one.
   a deliberate replay of the original `DEV_REFRESH_TOKEN` value to prove
   reuse detection (expect 401), a follow-up refresh proving the whole
   family is dead (expect 401), then `POST /auth/logout` followed by one
-  more refresh proving server-side revocation (expect 401)
+  more refresh proving server-side revocation (expect 401). Verified live
+  against a running server via curl (equivalent to the `.http` file,
+  mirroring PACK-034's precedent) — including the multi-generation-stale
+  replay that first exposed the hash-only lookup gap.

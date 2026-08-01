@@ -44,15 +44,16 @@ func fetchRefreshTokenRow(t *testing.T, id uuid.UUID) *models.RefreshTokenFamily
 
 func TestCreateFamily_PersistsRow(t *testing.T) {
 	ctx := context.Background()
+	id := uuid.NewString()
 	hash := "repo-test-hash-" + uuid.NewString()
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 
-	family, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), hash, expiresAt)
+	family, err := refreshTokenRepo.CreateFamily(ctx, id, repoUserID.String(), hash, expiresAt)
 	require.NoError(t, err)
 	require.NotNil(t, family)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, family.ID) })
 
-	assert.NotEqual(t, uuid.Nil, family.ID)
+	assert.Equal(t, id, family.ID.String())
 	assert.Equal(t, repoUserID, family.UserID)
 	assert.Equal(t, hash, family.TokenHash)
 	assert.Nil(t, family.PreviousTokenHash)
@@ -60,35 +61,39 @@ func TestCreateFamily_PersistsRow(t *testing.T) {
 	assert.WithinDuration(t, expiresAt, family.ExpiresAt, time.Second)
 }
 
-func TestFindFamilyByHash_MatchesCurrentAndPreviousHash(t *testing.T) {
+func TestFindFamilyByID_ReturnsFamily(t *testing.T) {
 	ctx := context.Background()
-	hash1 := "repo-test-hash1-" + uuid.NewString()
-	hash2 := "repo-test-hash2-" + uuid.NewString()
+	id := uuid.NewString()
 
-	family, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), hash1, time.Now().Add(7*24*time.Hour))
+	family, err := refreshTokenRepo.CreateFamily(ctx, id, repoUserID.String(), "repo-test-hash-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
 	require.NoError(t, err)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, family.ID) })
 
-	err = refreshTokenRepo.RotateFamily(ctx, family.ID.String(), hash2, time.Now().Add(7*24*time.Hour))
+	found, err := refreshTokenRepo.FindFamilyByID(ctx, id, repoUserID.String())
 	require.NoError(t, err)
-
-	byCurrent, err := refreshTokenRepo.FindFamilyByHash(ctx, repoUserID.String(), hash2)
-	require.NoError(t, err)
-	require.NotNil(t, byCurrent)
-	assert.Equal(t, family.ID, byCurrent.ID)
-
-	byPrevious, err := refreshTokenRepo.FindFamilyByHash(ctx, repoUserID.String(), hash1)
-	require.NoError(t, err)
-	require.NotNil(t, byPrevious)
-	assert.Equal(t, family.ID, byPrevious.ID)
+	require.NotNil(t, found)
+	assert.Equal(t, family.ID, found.ID)
 }
 
-func TestFindFamilyByHash_ReturnsNilForUnknownHash(t *testing.T) {
+func TestFindFamilyByID_ReturnsNilForUnknownID(t *testing.T) {
 	ctx := context.Background()
 
-	family, err := refreshTokenRepo.FindFamilyByHash(ctx, repoUserID.String(), "repo-test-unknown-"+uuid.NewString())
+	family, err := refreshTokenRepo.FindFamilyByID(ctx, uuid.NewString(), repoUserID.String())
 	require.NoError(t, err)
 	assert.Nil(t, family)
+}
+
+func TestFindFamilyByID_ReturnsNilForWrongUser(t *testing.T) {
+	ctx := context.Background()
+	id := uuid.NewString()
+
+	family, err := refreshTokenRepo.CreateFamily(ctx, id, repoUserID.String(), "repo-test-hash-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, family.ID) })
+
+	found, err := refreshTokenRepo.FindFamilyByID(ctx, id, uuid.NewString())
+	require.NoError(t, err)
+	assert.Nil(t, found)
 }
 
 func TestRotateFamily_ShiftsCurrentIntoPrevious(t *testing.T) {
@@ -97,7 +102,7 @@ func TestRotateFamily_ShiftsCurrentIntoPrevious(t *testing.T) {
 	hash2 := "repo-test-hash2-" + uuid.NewString()
 	newExpiry := time.Now().Add(6 * 24 * time.Hour)
 
-	family, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), hash1, time.Now().Add(7*24*time.Hour))
+	family, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), hash1, time.Now().Add(7*24*time.Hour))
 	require.NoError(t, err)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, family.ID) })
 
@@ -118,7 +123,7 @@ func TestRevokeFamily_SetsRevokedAt(t *testing.T) {
 	ctx := context.Background()
 	hash := "repo-test-hash-" + uuid.NewString()
 
-	family, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), hash, time.Now().Add(7*24*time.Hour))
+	family, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), hash, time.Now().Add(7*24*time.Hour))
 	require.NoError(t, err)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, family.ID) })
 
@@ -134,18 +139,18 @@ func TestDeleteStaleFamiliesForUser_RemovesOnlyRevokedOrExpiredForThatUser(t *te
 	ctx := context.Background()
 
 	// Active family for repoUserID — must survive.
-	active, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), "repo-test-active-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	active, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), "repo-test-active-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
 	require.NoError(t, err)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, active.ID) })
 
 	// Revoked family for repoUserID — must be removed.
-	revoked, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), "repo-test-revoked-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	revoked, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), "repo-test-revoked-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
 	require.NoError(t, err)
 	require.NoError(t, refreshTokenRepo.RevokeFamily(ctx, revoked.ID.String()))
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, revoked.ID) })
 
 	// Expired family for repoUserID — must be removed.
-	expired, err := refreshTokenRepo.CreateFamily(ctx, repoUserID.String(), "repo-test-expired-"+uuid.NewString(), time.Now().Add(-time.Hour))
+	expired, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), "repo-test-expired-"+uuid.NewString(), time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, expired.ID) })
 
@@ -158,7 +163,7 @@ func TestDeleteStaleFamiliesForUser_RemovesOnlyRevokedOrExpiredForThatUser(t *te
 	require.NoError(t, err)
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, otherUserID) })
 
-	otherRevoked, err := refreshTokenRepo.CreateFamily(ctx, otherUserID.String(), "repo-test-other-revoked-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	otherRevoked, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), otherUserID.String(), "repo-test-other-revoked-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
 	require.NoError(t, err)
 	require.NoError(t, refreshTokenRepo.RevokeFamily(ctx, otherRevoked.ID.String()))
 	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, otherRevoked.ID) })
