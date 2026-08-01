@@ -314,11 +314,7 @@ func TestGoogleCallback_CreatesFamilyAndSweepsStale(t *testing.T) {
 	refreshTokenRepo.AssertExpectations(t)
 }
 
-// TestGoogleCallback_InvalidState seeds a cookie matching the query-param
-// state so the double-submit check (PACK-023) passes and the request
-// actually reaches ValidateState — this test is about ValidateState's own
-// failure path (e.g. an expired or tampered token), not a cookie mismatch.
-// See TestGoogleCallback_CookieMismatch_Returns401 for that case.
+// Seeds a matching cookie so this exercises ValidateState's failure path, not a cookie mismatch.
 func TestGoogleCallback_InvalidState(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
@@ -369,10 +365,6 @@ func TestGoogleCallback_CookieMismatch_Returns401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// TestGoogleCallback_ClearsCookieAfterCheck covers the accepted replay
-// tradeoff from the PACK-023 handoff doc: the oauthState cookie is cleared
-// after the double-submit check regardless of outcome, as defense-in-depth
-// against a trivial same-browser replay.
 func TestGoogleCallback_ClearsCookieAfterCheck(t *testing.T) {
 	t.Run("on success", func(t *testing.T) {
 		userRepo := &MockUserRepository{}

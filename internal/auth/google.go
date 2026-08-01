@@ -3,10 +3,14 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 )
+
+const oauthStateTTL = 10 * time.Minute
 
 type GoogleOAuthManager struct {
 	config      *oauth2.Config
@@ -62,18 +66,18 @@ func newGoogleOAuthManager(config *oauth2.Config, verifier *oidc.IDTokenVerifier
 	}
 }
 
-// GenerateState creates a signed, short-lived state token for CSRF
-// protection (PACK-023 — not yet implemented).
+// GenerateState creates a signed, short-lived state token for CSRF protection.
 func (g *GoogleOAuthManager) GenerateState() (string, error) {
-	return "", fmt.Errorf("not implemented")
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(oauthStateTTL)),
+	}
+	return signToken(claims, g.stateSecret)
 }
 
-// ValidateState verifies the state token's signature and expiry
-// (PACK-023 — not yet implemented). Stubbed to true rather than false so
-// it doesn't trivially satisfy TestValidateState_InvalidSignature/_Expired,
-// which both expect false.
+// ValidateState verifies the state token's signature and expiry.
 func (g *GoogleOAuthManager) ValidateState(state string) bool {
-	return true
+	claims := &jwt.RegisteredClaims{}
+	return parseToken(state, g.stateSecret, claims) == nil
 }
 
 // GetAuthURL returns the URL to redirect the user to Google's consent screen

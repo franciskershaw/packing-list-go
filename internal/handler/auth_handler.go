@@ -22,6 +22,9 @@ const (
 	refreshGraceWindow = 10 * time.Second
 )
 
+// oauthStateCookieMaxAge mirrors internal/auth.oauthStateTTL, kept in sync by hand.
+const oauthStateCookieMaxAge = 10 * time.Minute
+
 func hashRefreshToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
@@ -73,15 +76,36 @@ func (h *AuthHandler) setRefreshCookie(c *gin.Context, value string, maxAge int)
 	c.SetCookie("refreshToken", value, maxAge, "/", "", h.cfg.Environment == "production", true)
 }
 
-// LoginWithGoogle (PACK-023 — not yet implemented).
-func (h *AuthHandler) LoginWithGoogle(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+// setOAuthStateCookie and clearOAuthStateCookie mirror setRefreshCookie's attributes.
+func (h *AuthHandler) setOAuthStateCookie(c *gin.Context, value string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("oauthState", value, int(oauthStateCookieMaxAge.Seconds()), "/", "", h.cfg.Environment == "production", true)
 }
 
-// validOAuthStateCookie is the PACK-023 double-submit check comparing the
-// oauthState cookie to the query-param state (not yet implemented).
+func (h *AuthHandler) clearOAuthStateCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("oauthState", "", -1, "/", "", h.cfg.Environment == "production", true)
+}
+
+func (h *AuthHandler) LoginWithGoogle(c *gin.Context) {
+	state, err := h.oauthManager.GenerateState()
+	if err != nil {
+		internalError(c, "failed to generate state", err)
+		return
+	}
+
+	h.setOAuthStateCookie(c, state)
+	authURL := h.oauthManager.GetAuthURL(state)
+	c.Redirect(http.StatusTemporaryRedirect, authURL)
+}
+
+// validOAuthStateCookie is the double-submit check: cookie must match the query param.
 func (h *AuthHandler) validOAuthStateCookie(c *gin.Context, queryState string) bool {
-	return false
+	cookieState, err := c.Cookie("oauthState")
+	if err != nil {
+		return false
+	}
+	return cookieState == queryState
 }
 
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
@@ -99,9 +123,11 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	}
 
 	if !h.validOAuthStateCookie(c, state) {
+		h.clearOAuthStateCookie(c)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid state parameter"})
 		return
 	}
+	h.clearOAuthStateCookie(c)
 
 	if !h.oauthManager.ValidateState(state) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid state parameter"})

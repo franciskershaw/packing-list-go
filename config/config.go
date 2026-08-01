@@ -26,16 +26,17 @@ type Config struct {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:               getEnv("PORT", "8080"),
-		Environment:        getEnv("APP_ENV", "development"),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		JWTSecretAccess:    os.Getenv("JWT_SECRET_ACCESS"),
-		JWTSecretRefresh:   os.Getenv("JWT_SECRET_REFRESH"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URI"),
-		FrontendURL:        os.Getenv("FRONTEND_URL"),
-		TrustedProxies:     parseTrustedProxies(os.Getenv("TRUSTED_PROXIES")),
+		Port:                getEnv("PORT", "8080"),
+		Environment:         getEnv("APP_ENV", "development"),
+		DatabaseURL:         os.Getenv("DATABASE_URL"),
+		JWTSecretAccess:     os.Getenv("JWT_SECRET_ACCESS"),
+		JWTSecretRefresh:    os.Getenv("JWT_SECRET_REFRESH"),
+		JWTSecretOAuthState: os.Getenv("JWT_SECRET_OAUTH_STATE"),
+		GoogleClientID:      os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:  os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirectURL:   os.Getenv("GOOGLE_REDIRECT_URI"),
+		FrontendURL:         os.Getenv("FRONTEND_URL"),
+		TrustedProxies:      parseTrustedProxies(os.Getenv("TRUSTED_PROXIES")),
 	}
 
 	// Validate required env vars
@@ -47,6 +48,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWTSecretRefresh == "" {
 		return nil, fmt.Errorf("JWT_SECRET_REFRESH not set")
+	}
+	if cfg.JWTSecretOAuthState == "" {
+		return nil, fmt.Errorf("JWT_SECRET_OAUTH_STATE not set")
 	}
 	if cfg.FrontendURL == "" {
 		return nil, fmt.Errorf("FRONTEND_URL not set")
