@@ -57,6 +57,7 @@ func main() {
 		cfg.GoogleClientID,
 		cfg.GoogleClientSecret,
 		cfg.GoogleRedirectURL,
+		cfg.JWTSecretOAuthState,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Google OAuth init failed: %v\n", err)

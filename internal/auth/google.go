@@ -2,22 +2,16 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"math/big"
-	"sync"
-	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
 
 type GoogleOAuthManager struct {
-	config          *oauth2.Config
-	verifier        *oidc.IDTokenVerifier
-	stateStore      map[string]time.Time
-	stateStoreMutex sync.Mutex
-	stateExpiryTime time.Duration
+	config      *oauth2.Config
+	verifier    *oidc.IDTokenVerifier
+	stateSecret string
 }
 
 type IDTokenClaims struct {
@@ -28,7 +22,7 @@ type IDTokenClaims struct {
 }
 
 // NewGoogleOAuthManager initializes the Google OAuth2 manager
-func NewGoogleOAuthManager(clientID, clientSecret, redirectURL string) (*GoogleOAuthManager, error) {
+func NewGoogleOAuthManager(clientID, clientSecret, redirectURL, stateSecret string) (*GoogleOAuthManager, error) {
 	ctx := context.Background()
 
 	// Initialize OIDC provider for Google
@@ -53,61 +47,32 @@ func NewGoogleOAuthManager(clientID, clientSecret, redirectURL string) (*GoogleO
 	// Create ID token verifier
 	verifier := provider.Verifier(&oidc.Config{ClientID: clientID})
 
-	return newGoogleOAuthManager(config, verifier), nil
+	return newGoogleOAuthManager(config, verifier, stateSecret), nil
 }
 
 // newGoogleOAuthManager builds a manager from an already-constructed
 // config and verifier, so tests can inject a fake config directly
 // instead of performing a live network call to Google's discovery
 // endpoint (which NewGoogleOAuthManager still does for real callers).
-func newGoogleOAuthManager(config *oauth2.Config, verifier *oidc.IDTokenVerifier) *GoogleOAuthManager {
+func newGoogleOAuthManager(config *oauth2.Config, verifier *oidc.IDTokenVerifier, stateSecret string) *GoogleOAuthManager {
 	return &GoogleOAuthManager{
-		config:          config,
-		verifier:        verifier,
-		stateStore:      make(map[string]time.Time),
-		stateExpiryTime: 10 * time.Minute,
+		config:      config,
+		verifier:    verifier,
+		stateSecret: stateSecret,
 	}
 }
 
-// GenerateState creates a random state string for CSRF protection
-func (g *GoogleOAuthManager) GenerateState() string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	state := make([]byte, 32)
-	for i := range state {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			panic(fmt.Errorf("crypto/rand failed generating OAuth state: %w", err))
-		}
-		state[i] = charset[n.Int64()]
-	}
-	stateStr := string(state)
-
-	// Store state with expiry
-	g.stateStoreMutex.Lock()
-	g.stateStore[stateStr] = time.Now().Add(g.stateExpiryTime)
-	g.stateStoreMutex.Unlock()
-
-	return stateStr
+// GenerateState creates a signed, short-lived state token for CSRF
+// protection (PACK-023 — not yet implemented).
+func (g *GoogleOAuthManager) GenerateState() (string, error) {
+	return "", fmt.Errorf("not implemented")
 }
 
-// ValidateState checks if the state is valid and hasn't expired
+// ValidateState verifies the state token's signature and expiry
+// (PACK-023 — not yet implemented). Stubbed to true rather than false so
+// it doesn't trivially satisfy TestValidateState_InvalidSignature/_Expired,
+// which both expect false.
 func (g *GoogleOAuthManager) ValidateState(state string) bool {
-	g.stateStoreMutex.Lock()
-	defer g.stateStoreMutex.Unlock()
-
-	expiry, exists := g.stateStore[state]
-	if !exists {
-		return false
-	}
-
-	// Check if state has expired
-	if time.Now().After(expiry) {
-		delete(g.stateStore, state)
-		return false
-	}
-
-	// State is valid, remove it (one-time use)
-	delete(g.stateStore, state)
 	return true
 }
 

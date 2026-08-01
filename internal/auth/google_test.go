@@ -6,8 +6,11 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 )
+
+const testStateSecret = "test-oauth-state-secret"
 
 // newTestOAuthManager builds a GoogleOAuthManager from a fake config,
 // with no network I/O — avoids the live call to Google's OIDC discovery
@@ -28,51 +31,81 @@ func newTestOAuthManager(clientID string) *GoogleOAuthManager {
 			TokenURL: "https://oauth2.googleapis.com/token",
 		},
 	}
-	return newGoogleOAuthManager(config, nil)
+	return newGoogleOAuthManager(config, nil, testStateSecret)
 }
 
 func TestGenerateState(t *testing.T) {
 	manager := newTestOAuthManager("test-id")
 
-	state := manager.GenerateState()
-
+	state, err := manager.GenerateState()
+	if err != nil {
+		t.Fatalf("GenerateState returned unexpected error: %v", err)
+	}
 	if state == "" {
-		t.Error("GenerateState returned empty string")
+		t.Fatal("GenerateState returned empty string")
 	}
 
-	if len(state) != 32 {
-		t.Errorf("expected state length 32, got %d", len(state))
+	claims := &jwt.RegisteredClaims{}
+	token, err := jwt.ParseWithClaims(state, claims, func(token *jwt.Token) (any, error) {
+		return []byte(testStateSecret), nil
+	})
+	if err != nil || !token.Valid {
+		t.Fatalf("GenerateState did not return a validly-signed token: %v", err)
+	}
+
+	if claims.ExpiresAt == nil {
+		t.Fatal("expected exp claim to be set")
+	}
+	gotTTL := time.Until(claims.ExpiresAt.Time)
+	if gotTTL < 9*time.Minute || gotTTL > 10*time.Minute {
+		t.Errorf("expected exp claim ~10m from now, got %v", gotTTL)
 	}
 }
 
-func TestValidateState(t *testing.T) {
+func TestValidateState_ValidToken(t *testing.T) {
 	manager := newTestOAuthManager("test-id")
 
-	state := manager.GenerateState()
+	state, err := manager.GenerateState()
+	if err != nil {
+		t.Fatalf("GenerateState returned unexpected error: %v", err)
+	}
 
-	// Valid state should return true
 	if !manager.ValidateState(state) {
-		t.Error("ValidateState returned false for valid state")
-	}
-
-	// Same state should return false (one-time use)
-	if manager.ValidateState(state) {
-		t.Error("ValidateState returned true for reused state")
+		t.Error("ValidateState returned false for a freshly generated state")
 	}
 }
 
-func TestValidateStateExpiry(t *testing.T) {
+func TestValidateState_InvalidSignature(t *testing.T) {
 	manager := newTestOAuthManager("test-id")
 
-	// Set expiry to 1 millisecond so it expires immediately
-	manager.stateExpiryTime = 1 * time.Millisecond
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte("wrong-secret"))
+	if err != nil {
+		t.Fatalf("failed to sign test token: %v", err)
+	}
 
-	state := manager.GenerateState()
-	time.Sleep(2 * time.Millisecond)
+	if manager.ValidateState(signed) {
+		t.Error("ValidateState returned true for a token signed with the wrong secret")
+	}
+}
 
-	// Expired state should return false
-	if manager.ValidateState(state) {
-		t.Error("ValidateState returned true for expired state")
+func TestValidateState_Expired(t *testing.T) {
+	manager := newTestOAuthManager("test-id")
+
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(testStateSecret))
+	if err != nil {
+		t.Fatalf("failed to sign test token: %v", err)
+	}
+
+	if manager.ValidateState(signed) {
+		t.Error("ValidateState returned true for an expired state")
 	}
 }
 

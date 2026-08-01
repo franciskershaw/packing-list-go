@@ -10,6 +10,7 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/test")
 	t.Setenv("JWT_SECRET_ACCESS", "test-access-secret")
 	t.Setenv("JWT_SECRET_REFRESH", "test-refresh-secret")
+	t.Setenv("JWT_SECRET_OAUTH_STATE", "test-oauth-state-secret")
 	t.Setenv("FRONTEND_URL", "http://localhost:5173")
 }
 
@@ -48,6 +49,16 @@ func TestLoad_RequiresFrontendURL(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Fatal("expected Load() to return an error when FRONTEND_URL is unset, got nil")
+	}
+}
+
+func TestLoad_RequiresJWTSecretOAuthState(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("JWT_SECRET_OAUTH_STATE")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected Load() to return an error when JWT_SECRET_OAUTH_STATE is unset, got nil")
 	}
 }
 

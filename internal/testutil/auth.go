@@ -11,8 +11,9 @@ import (
 // AuthMiddleware (to validate tokens minted by AuthHeader) reference the
 // same value instead of duplicating the literal string.
 const (
-	TestJWTSecretAccess  = "test-secret-access"
-	TestJWTSecretRefresh = "test-secret-refresh"
+	TestJWTSecretAccess     = "test-secret-access"
+	TestJWTSecretRefresh    = "test-secret-refresh"
+	TestJWTSecretOAuthState = "test-secret-oauth-state"
 )
 
 func AuthHeader(t *testing.T, email, userID string) string {

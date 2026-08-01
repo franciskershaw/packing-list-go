@@ -10,17 +10,18 @@ import (
 )
 
 type Config struct {
-	Port               string
-	Environment        string
-	DatabaseURL        string
-	JWTSecretAccess    string
-	JWTSecretRefresh   string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-	GoogleOAuth2Config *oauth2.Config
-	FrontendURL        string
-	TrustedProxies     []string
+	Port                string
+	Environment         string
+	DatabaseURL         string
+	JWTSecretAccess     string
+	JWTSecretRefresh    string
+	JWTSecretOAuthState string
+	GoogleClientID      string
+	GoogleClientSecret  string
+	GoogleRedirectURL   string
+	GoogleOAuth2Config  *oauth2.Config
+	FrontendURL         string
+	TrustedProxies      []string
 }
 
 func Load() (*Config, error) {

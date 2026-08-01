@@ -55,9 +55,9 @@ type MockOAuthManager struct {
 	mock.Mock
 }
 
-func (m *MockOAuthManager) GenerateState() string {
+func (m *MockOAuthManager) GenerateState() (string, error) {
 	args := m.Called()
-	return args.String(0)
+	return args.String(0), args.Error(1)
 }
 
 func (m *MockOAuthManager) ValidateState(state string) bool {
@@ -125,6 +125,7 @@ func (m *MockRefreshTokenRepository) DeleteStaleFamiliesForUser(ctx context.Cont
 
 func newTestRouter(h *handler.AuthHandler) *gin.Engine {
 	r := gin.New()
+	r.GET("/auth/google/login", h.LoginWithGoogle)
 	r.GET("/auth/google/callback", h.GoogleCallback)
 	r.POST("/auth/refresh", h.RefreshToken)
 	r.POST("/auth/logout", h.Logout)
@@ -137,10 +138,11 @@ func newTestRouter(h *handler.AuthHandler) *gin.Engine {
 // testConfig builds a minimal *config.Config for handler construction.
 func testConfig(environment string) *config.Config {
 	return &config.Config{
-		Environment:      environment,
-		JWTSecretAccess:  testutil.TestJWTSecretAccess,
-		JWTSecretRefresh: testutil.TestJWTSecretRefresh,
-		FrontendURL:      "http://localhost:5173",
+		Environment:         environment,
+		JWTSecretAccess:     testutil.TestJWTSecretAccess,
+		JWTSecretRefresh:    testutil.TestJWTSecretRefresh,
+		JWTSecretOAuthState: testutil.TestJWTSecretOAuthState,
+		FrontendURL:         "http://localhost:5173",
 	}
 }
 
@@ -190,6 +192,7 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+	req.AddCookie(&http.Cookie{Name: "oauthState", Value: "valid-state"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -206,7 +209,7 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 			refreshCookie = c
 		}
 	}
-	assert.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
+	require.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
 	assert.True(t, refreshCookie.HttpOnly)
 	assert.False(t, refreshCookie.Secure, "expected Secure=false in development")
 	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
@@ -242,6 +245,7 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+	req.AddCookie(&http.Cookie{Name: "oauthState", Value: "valid-state"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -255,7 +259,7 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 			refreshCookie = c
 		}
 	}
-	assert.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
+	require.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
 	assert.True(t, refreshCookie.Secure, "expected Secure=true in production")
 	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
 
@@ -290,6 +294,7 @@ func TestGoogleCallback_CreatesFamilyAndSweepsStale(t *testing.T) {
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+	req.AddCookie(&http.Cookie{Name: "oauthState", Value: "valid-state"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -309,6 +314,11 @@ func TestGoogleCallback_CreatesFamilyAndSweepsStale(t *testing.T) {
 	refreshTokenRepo.AssertExpectations(t)
 }
 
+// TestGoogleCallback_InvalidState seeds a cookie matching the query-param
+// state so the double-submit check (PACK-023) passes and the request
+// actually reaches ValidateState — this test is about ValidateState's own
+// failure path (e.g. an expired or tampered token), not a cookie mismatch.
+// See TestGoogleCallback_CookieMismatch_Returns401 for that case.
 func TestGoogleCallback_InvalidState(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
@@ -320,10 +330,163 @@ func TestGoogleCallback_InvalidState(t *testing.T) {
 	r := newTestRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=bad-state", nil)
+	req.AddCookie(&http.Cookie{Name: "oauthState", Value: "bad-state"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	oauthMgr.AssertExpectations(t)
+}
+
+func TestGoogleCallback_MissingCookie_Returns401(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	refreshTokenRepo := &MockRefreshTokenRepository{}
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestGoogleCallback_CookieMismatch_Returns401(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	refreshTokenRepo := &MockRefreshTokenRepository{}
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+	req.AddCookie(&http.Cookie{Name: "oauthState", Value: "different-state"})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// TestGoogleCallback_ClearsCookieAfterCheck covers the accepted replay
+// tradeoff from the PACK-023 handoff doc: the oauthState cookie is cleared
+// after the double-submit check regardless of outcome, as defense-in-depth
+// against a trivial same-browser replay.
+func TestGoogleCallback_ClearsCookieAfterCheck(t *testing.T) {
+	t.Run("on success", func(t *testing.T) {
+		userRepo := &MockUserRepository{}
+		oauthMgr := &MockOAuthManager{}
+		refreshTokenRepo := &MockRefreshTokenRepository{}
+
+		fakeToken := &oauth2.Token{}
+		fakeClaims := &auth.IDTokenClaims{
+			Email:       "test@example.com",
+			GoogleID:    "google-123",
+			DisplayName: "Test User",
+			AvatarURL:   "https://example.com/avatar.png",
+		}
+		user := testUser()
+
+		oauthMgr.On("ValidateState", "valid-state").Return(true)
+		oauthMgr.On("ExchangeCodeForToken", mock.Anything, "auth-code").Return(fakeToken, nil)
+		oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
+		userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
+		refreshTokenRepo.On("DeleteStaleFamiliesForUser", mock.Anything, user.ID.String()).Return(nil)
+		refreshTokenRepo.On("CreateFamily", mock.Anything, mock.AnythingOfType("string"), user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
+			Return(&models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID}, nil)
+
+		h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+		r := newTestRouter(h)
+
+		req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+		req.AddCookie(&http.Cookie{Name: "oauthState", Value: "valid-state"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assertOAuthStateCookieCleared(t, w)
+	})
+
+	t.Run("on failure", func(t *testing.T) {
+		userRepo := &MockUserRepository{}
+		oauthMgr := &MockOAuthManager{}
+		refreshTokenRepo := &MockRefreshTokenRepository{}
+
+		h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+		r := newTestRouter(h)
+
+		req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=auth-code&state=valid-state", nil)
+		req.AddCookie(&http.Cookie{Name: "oauthState", Value: "different-state"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assertOAuthStateCookieCleared(t, w)
+	})
+}
+
+func assertOAuthStateCookieCleared(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	cookies := w.Result().Cookies()
+	var stateCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "oauthState" {
+			stateCookie = c
+		}
+	}
+	require.NotNil(t, stateCookie, "expected oauthState cookie to be present (cleared) in response")
+	assert.True(t, stateCookie.MaxAge < 0, "expected oauthState cookie to be cleared, got MaxAge=%d", stateCookie.MaxAge)
+}
+
+// --- LoginWithGoogle tests ---
+
+func TestLoginWithGoogle_SetsOAuthStateCookie(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	refreshTokenRepo := &MockRefreshTokenRepository{}
+
+	oauthMgr.On("GenerateState").Return("signed-state-token", nil)
+	oauthMgr.On("GetAuthURL", "signed-state-token").Return("https://accounts.google.com/o/oauth2/v2/auth?state=signed-state-token")
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/login", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
+
+	cookies := w.Result().Cookies()
+	var stateCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "oauthState" {
+			stateCookie = c
+		}
+	}
+	require.NotNil(t, stateCookie, "expected oauthState cookie to be set")
+	assert.Equal(t, "signed-state-token", stateCookie.Value)
+	assert.True(t, stateCookie.HttpOnly)
+	assert.False(t, stateCookie.Secure, "expected Secure=false in development")
+	assert.Equal(t, http.SameSiteLaxMode, stateCookie.SameSite)
+
+	oauthMgr.AssertExpectations(t)
+}
+
+func TestLoginWithGoogle_GenerateStateError_Returns500(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	refreshTokenRepo := &MockRefreshTokenRepository{}
+
+	oauthMgr.On("GenerateState").Return("", errors.New("signing failed"))
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/google/login", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	oauthMgr.AssertExpectations(t)
 }
 

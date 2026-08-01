@@ -42,7 +42,7 @@ type RefreshTokenRepository interface {
 }
 
 type OAuthManager interface {
-	GenerateState() string
+	GenerateState() (string, error)
 	ValidateState(state string) bool
 	GetAuthURL(state string) string
 	ExchangeCodeForToken(ctx context.Context, code string) (*oauth2.Token, error)
@@ -73,10 +73,15 @@ func (h *AuthHandler) setRefreshCookie(c *gin.Context, value string, maxAge int)
 	c.SetCookie("refreshToken", value, maxAge, "/", "", h.cfg.Environment == "production", true)
 }
 
+// LoginWithGoogle (PACK-023 — not yet implemented).
 func (h *AuthHandler) LoginWithGoogle(c *gin.Context) {
-	state := h.oauthManager.GenerateState()
-	authURL := h.oauthManager.GetAuthURL(state)
-	c.Redirect(http.StatusTemporaryRedirect, authURL)
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+// validOAuthStateCookie is the PACK-023 double-submit check comparing the
+// oauthState cookie to the query-param state (not yet implemented).
+func (h *AuthHandler) validOAuthStateCookie(c *gin.Context, queryState string) bool {
+	return false
 }
 
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
@@ -90,6 +95,11 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	if state == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing state parameter"})
+		return
+	}
+
+	if !h.validOAuthStateCookie(c, state) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid state parameter"})
 		return
 	}
 
