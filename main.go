@@ -29,6 +29,7 @@ const tokenSweepInterval = time.Hour
 const shutdownGracePeriod = 10 * time.Second
 
 var globalRateLimit = limiter.Rate{Period: time.Minute, Limit: 60}
+var authRateLimit = limiter.Rate{Period: time.Minute, Limit: 10}
 
 func main() {
 	// Match Gin's own default writer (os.Stdout) so log output interleaves in order.
@@ -79,10 +80,14 @@ func main() {
 	})
 
 	// Auth routes (public)
-	server.GET("/auth/google/login", authHandler.LoginWithGoogle)
-	server.GET("/auth/google/callback", authHandler.GoogleCallback)
-	server.POST("/auth/refresh", authHandler.RefreshToken)
-	server.POST("/auth/logout", authHandler.Logout)
+	authPublic := server.Group("/auth")
+	authPublic.Use(middleware.RateLimit(memory.NewStore(), authRateLimit))
+	{
+		authPublic.GET("/google/login", authHandler.LoginWithGoogle)
+		authPublic.GET("/google/callback", authHandler.GoogleCallback)
+		authPublic.POST("/refresh", authHandler.RefreshToken)
+		authPublic.POST("/logout", authHandler.Logout)
+	}
 
 	// Authenticated routes
 	categoryHandler := handler.NewCategoryHandler(repository.NewCategoryRepository(db.DB))

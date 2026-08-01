@@ -102,7 +102,7 @@ Key decisions from interview:
       adjacent gap in code this AC already touches, not a new feature.
 - [x] AC2 — Global rate limiter (`Rate{Period: time.Minute, Limit: 60}`)
       applied via `server.Use(...)` covering the whole API.
-- [ ] AC3 — `/auth/*` routes regrouped under `server.Group("/auth")` with
+- [x] AC3 — `/auth/*` routes regrouped under `server.Group("/auth")` with
       their own stricter rate limiter (`Rate{Period: time.Minute, Limit:
       10}`) applied via `.Use()` on that group, independent of the global
       limiter.
