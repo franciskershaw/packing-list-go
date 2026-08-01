@@ -155,3 +155,7 @@ Key decisions from interview:
   expired row went from a count of 1 to 0 within one tick, confirmed via
   a throwaway in-module script (not committed) exercising the real
   `DeleteAllStaleFamilies` path.
+
+## Close-out
+
+Completed 2026-08-01. Retro entry in LESSONS.md.

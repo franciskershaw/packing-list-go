@@ -449,8 +449,8 @@ the numbering implies an order.)*
     didn't build a ticker without shutdown coordination to stop it
     against. Small addition to this ticket's scope when picked up, not a
     separate ticket.
-  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
-    items 1-2 (source findings).
+  - **Status: Done.** See `docs/handoffs/PACK-021.md`. Source finding:
+    `docs/handoffs/audit-2026-07-11-findings.md` items 1-2.
 - **PACK-022** — Request-level abuse protection.
   - Rate limiting on `/auth/*`, request body size cap,
     `server.SetTrustedProxies(nil)`.

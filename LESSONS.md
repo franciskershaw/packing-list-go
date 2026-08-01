@@ -433,3 +433,16 @@ project kickoff.
   migration touched more than once in the same session.
 - Demotion check: skipped — Epic 7 still has several open tickets
   (PACK-021/022/023/024/025/026/028), not a boundary.
+
+## 2026-08-01 — PACK-021 — Server lifecycle hardening shipped clean; close-out itself was the only thing skipped
+
+- No rework. Timeouts, graceful shutdown, `configureGinMode`, and the
+  `runTokenSweeper` follow-up bundled in from PACK-027 all landed same-day
+  in four straightforward commits, matching the handoff doc's decisions
+  exactly.
+- The ticket was fully implemented, tested, and manually verified on
+  2026-08-01, but close-out wasn't run at the time — `master-spec.md`
+  stayed at "not started" with no retro entry until a later session
+  caught the gap.
+- Demotion check: skipped — Epic 7 still has several open tickets
+  (PACK-022/023/024/025/026/028), not a boundary.
