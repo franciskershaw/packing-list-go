@@ -81,6 +81,11 @@ func (r *PostgresRefreshTokenRepository) RevokeFamily(ctx context.Context, famil
 	return nil
 }
 
+// DeleteAllStaleFamilies is the global counterpart to DeleteStaleFamiliesForUser, run periodically rather than lazily on login.
+func (r *PostgresRefreshTokenRepository) DeleteAllStaleFamilies(ctx context.Context) error {
+	return errors.New("not implemented")
+}
+
 func (r *PostgresRefreshTokenRepository) DeleteStaleFamiliesForUser(ctx context.Context, userID string) error {
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM refresh_tokens WHERE user_id = $1 AND (revoked_at IS NOT NULL OR expires_at < CURRENT_TIMESTAMP)`,

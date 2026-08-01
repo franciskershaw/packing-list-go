@@ -184,3 +184,62 @@ func TestDeleteStaleFamiliesForUser_RemovesOnlyRevokedOrExpiredForThatUser(t *te
 	require.NoError(t, db.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE id = $1`, otherRevoked.ID).Scan(&count))
 	assert.Equal(t, 1, count, "another user's revoked family should not be touched")
 }
+
+// Mirrors TestDeleteStaleFamiliesForUser_RemovesOnlyRevokedOrExpiredForThatUser above, but unscoped: another user's stale row must also be removed.
+func TestDeleteAllStaleFamilies_RemovesRevokedOrExpiredAcrossUsers(t *testing.T) {
+	ctx := context.Background()
+
+	// Active family for repoUserID — must survive.
+	active, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), "repo-test-all-active-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, active.ID) })
+
+	// Revoked family for repoUserID — must be removed.
+	revoked, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), "repo-test-all-revoked-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	require.NoError(t, err)
+	require.NoError(t, refreshTokenRepo.RevokeFamily(ctx, revoked.ID.String()))
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, revoked.ID) })
+
+	// Expired family for repoUserID — must be removed.
+	expired, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), repoUserID.String(), "repo-test-all-expired-"+uuid.NewString(), time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, expired.ID) })
+
+	// A different user, with one active and one revoked family.
+	otherUserID := uuid.New()
+	_, err = db.DB.Exec(
+		`INSERT INTO users (id, google_id, email) VALUES ($1, $2, $3)`,
+		otherUserID, "repo-test-all-google-"+otherUserID.String(), "repo-test-all-"+otherUserID.String()+"@example.com",
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, otherUserID) })
+
+	otherActive, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), otherUserID.String(), "repo-test-all-other-active-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	require.NoError(t, err)
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, otherActive.ID) })
+
+	// Revoked family for the different user — must ALSO be removed (no user scoping).
+	otherRevoked, err := refreshTokenRepo.CreateFamily(ctx, uuid.NewString(), otherUserID.String(), "repo-test-all-other-revoked-"+uuid.NewString(), time.Now().Add(7*24*time.Hour))
+	require.NoError(t, err)
+	require.NoError(t, refreshTokenRepo.RevokeFamily(ctx, otherRevoked.ID.String()))
+	t.Cleanup(func() { db.DB.Exec(`DELETE FROM refresh_tokens WHERE id = $1`, otherRevoked.ID) })
+
+	err = refreshTokenRepo.DeleteAllStaleFamilies(ctx)
+	require.NoError(t, err)
+
+	var count int
+	require.NoError(t, db.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE id = $1`, active.ID).Scan(&count))
+	assert.Equal(t, 1, count, "active family should survive")
+
+	require.NoError(t, db.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE id = $1`, revoked.ID).Scan(&count))
+	assert.Equal(t, 0, count, "revoked family should be removed")
+
+	require.NoError(t, db.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE id = $1`, expired.ID).Scan(&count))
+	assert.Equal(t, 0, count, "expired family should be removed")
+
+	require.NoError(t, db.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE id = $1`, otherActive.ID).Scan(&count))
+	assert.Equal(t, 1, count, "another user's active family should survive")
+
+	require.NoError(t, db.DB.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE id = $1`, otherRevoked.ID).Scan(&count))
+	assert.Equal(t, 0, count, "another user's revoked family should be removed (global sweep, no user scoping)")
+}
