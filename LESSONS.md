@@ -473,3 +473,37 @@ project kickoff.
   rule this round (see close-out — declined).
 - Demotion check: skipped — Epic 7 still has several open tickets
   (PACK-023/024/025/026/028), not a boundary.
+
+## 2026-08-01 — PACK-023 — OAuth state store fix shipped clean; tests-first caught two real hazards before implementation
+
+- Unbounded in-memory state map replaced with a stateless signed JWT
+  cookie (double-submit pattern), following existing `jwt.go`/
+  `setRefreshCookie` precedent — no ADR needed. Layer-by-layer
+  implementation (auth+config, then handler) went green on the first pass
+  in both layers; no mid-implementation design reversal this time, unlike
+  PACK-027.
+- Drafting the full test suite before implementation caught two hazards
+  that would otherwise have surfaced later: (1) a naive `ValidateState`
+  stub returning `false` would have trivially passed two tests that also
+  expect `false` — caught by checking the stub against every test's
+  expected value, not just the one it was written for. (2) Two
+  pre-existing tests had `assert.NotNil` followed by an unguarded
+  field dereference; the new stub made the asserted value nil, which
+  would have panicked and aborted the whole test binary rather than
+  failing one test. Fixed by switching to `require.NotNil`.
+- **Pattern**: when introducing a stub that returns a fixed value, check
+  it against *every* test that will run against it, not just the test it
+  was written to fail — a stub can accidentally satisfy an assertion it
+  was never meant to. Also: any `assert.NotNil` immediately followed by a
+  field access on that value is a latent panic risk the moment the code
+  path producing it changes — prefer `require.NotNil` whenever a
+  same-test dereference follows.
+- **Comment-terseness enforcement changed from passive to mechanical**
+  this same session (11th+ recurrence of the terse-comments feedback,
+  including a new ticket-ID-in-comment sub-variant) — a global `PreToolUse`
+  hook now flags (warn-only, not blocking) over-long comments and
+  ticket-ID references on Edit/Write for code files. This isn't scoped to
+  this repo, but it directly affects how this repo's future tickets get
+  written, so noting it here. See `~/.claude/hooks/check_comment_terseness.py`.
+- Demotion check: skipped — Epic 7 still has several open tickets
+  (PACK-024/025/026/028/037), not a boundary.

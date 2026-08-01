@@ -464,10 +464,11 @@ the numbering implies an order.)*
   - **Status: Done.** See `docs/handoffs/PACK-022.md`. Source finding:
     `docs/handoffs/audit-2026-07-11-findings.md` items 3-4.
 - **PACK-023** — OAuth state store fix.
-  - Unbounded in-memory map on `/auth/google/login` — sweep expired
-    entries, or go stateless with a signed state cookie.
-  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
-    item 5 (source finding).
+  - Unbounded in-memory map on `/auth/google/login` replaced with a
+    stateless signed JWT cookie (double-submit pattern) — see
+    `docs/handoffs/PACK-023.md` for the full decision trail.
+  - **Status: Done.** See `docs/handoffs/PACK-023.md`. Source finding:
+    `docs/handoffs/audit-2026-07-11-findings.md` item 5.
 - **PACK-024** — CI pipeline + fail-loud DB tests.
   - GitHub Actions running `gofmt`/`go vet`/`golangci-lint`/
     `govulncheck`/`go test`; repository suite fails (not silently skips)

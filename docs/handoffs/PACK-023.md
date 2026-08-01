@@ -100,29 +100,29 @@ Key decisions from interview:
 
 ## Acceptance criteria
 
-- [ ] AC1 — `GoogleOAuthManager` no longer holds `stateStore`/
+- [x] AC1 — `GoogleOAuthManager` no longer holds `stateStore`/
       `stateStoreMutex` (removed from the struct and
       `newGoogleOAuthManager`). `GenerateState() (string, error)` returns
       a JWT signed with `cfg.JWTSecretOAuthState`, `exp` set to
       `time.Now().Add(oauthStateTTL)` (10 min, package const), no other
       claims.
-- [ ] AC2 — `LoginWithGoogle` sets the returned JWT as an `HttpOnly`
+- [x] AC2 — `LoginWithGoogle` sets the returned JWT as an `HttpOnly`
       cookie named `oauthState` (`SameSite=Lax`, `Secure` gated on
       `cfg.Environment == "production"`, `Path="/"`, matching
       `setRefreshCookie`'s attributes) in addition to passing it as the
       `state` query param via `GetAuthURL` (unchanged). Responds `500
       gin.H{"error": "internal server error"}` if `GenerateState` errors,
       instead of panicking.
-- [ ] AC3 — `GoogleCallback` reads the `oauthState` cookie and compares it
+- [x] AC3 — `GoogleCallback` reads the `oauthState` cookie and compares it
       by plain string equality to the query-param `state` *before*
       calling `ValidateState`; a missing cookie or a mismatch is a `401
       gin.H{"error": "invalid state parameter"}` — same response shape as
       today's invalid-state path. The cookie is cleared (`Max-Age -1`)
       after the check, on both the success and failure paths.
-- [ ] AC4 — `ValidateState(state string) bool` verifies the JWT's
+- [x] AC4 — `ValidateState(state string) bool` verifies the JWT's
       signature (`cfg.JWTSecretOAuthState`) and expiry instead of a map
       lookup; interface signature and return type unchanged.
-- [ ] AC5 — `config.Config` gains a required `JWTSecretOAuthState` field
+- [x] AC5 — `config.Config` gains a required `JWTSecretOAuthState` field
       (env `JWT_SECRET_OAUTH_STATE`), following the exact pattern of
       `JWTSecretAccess`/`JWTSecretRefresh` (`config/config.go:40-52`) —
       `Load()` fails hard with `fmt.Errorf("JWT_SECRET_OAUTH_STATE not
@@ -191,4 +191,4 @@ Key decisions from interview:
 
 ## Close-out
 
-Not started.
+Completed 2026-08-01. Retro entry in LESSONS.md.
