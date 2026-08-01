@@ -11,12 +11,13 @@ import (
 )
 
 var (
-	catRepo         *repository.CategoryRepository
-	itemRepo        *repository.ItemRepository
-	templateRepo    *repository.TemplateRepository
-	packingListRepo *repository.PackingListRepository
-	userRepo        *repository.PostgresUserRepository
-	repoUserID      uuid.UUID
+	catRepo          *repository.CategoryRepository
+	itemRepo         *repository.ItemRepository
+	templateRepo     *repository.TemplateRepository
+	packingListRepo  *repository.PackingListRepository
+	userRepo         *repository.PostgresUserRepository
+	refreshTokenRepo *repository.PostgresRefreshTokenRepository
+	repoUserID       uuid.UUID
 )
 
 func TestMain(m *testing.M) {
@@ -35,6 +36,7 @@ func TestMain(m *testing.M) {
 	templateRepo = repository.NewTemplateRepository(db.DB)
 	packingListRepo = repository.NewPackingListRepository(db.DB)
 	userRepo = repository.NewPostgresUserRepository(db.DB)
+	refreshTokenRepo = repository.NewPostgresRefreshTokenRepository(db.DB)
 	repoUserID = uuid.New()
 
 	_, err := db.DB.Exec(
