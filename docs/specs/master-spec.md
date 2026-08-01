@@ -562,3 +562,12 @@ the numbering implies an order.)*
     fix. See `docs/handoffs/PACK-022.md`'s manual-verification section for
     the full account.
   - **Status: not started.**
+- **PACK-038** — Docker/deployment target.
+  - Split out of PACK-024's grill-me 2026-08-01: the audit finding PACK-024
+    traces to (item 6) only names a CI pipeline + fail-loud DB tests, not
+    containerization or a hosting target — no Dockerfile or deployment
+    config exists anywhere in this repo yet. Filed as its own ticket rather
+    than bundled in, since picking a deployment target (Render/Fly/Railway/
+    etc.), container-vs-buildpack, and production secrets management is a
+    real decision with its own blast radius deserving its own `/grill-me`.
+  - **Status: not started.**
