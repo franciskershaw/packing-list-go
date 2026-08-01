@@ -14,9 +14,7 @@ import (
 )
 
 // fetchRefreshTokenRow reads a row directly, for assertions not exposed
-// through the repository's own methods (mirrors this file's siblings'
-// pattern of verifying state via direct SQL rather than only the API
-// under test).
+// through the repository's own methods.
 func fetchRefreshTokenRow(t *testing.T, id uuid.UUID) *models.RefreshTokenFamily {
 	t.Helper()
 

@@ -32,9 +32,8 @@ func (r *PostgresRefreshTokenRepository) CreateFamily(ctx context.Context, userI
 	return family, nil
 }
 
-// FindFamilyByHash matches tokenHash against either the current or the
-// previous hash, since a token presented within PACK-027's grace window is
-// still a legitimate refresh, not reuse.
+// FindFamilyByHash matches either the current or the previous hash — a
+// grace-window refresh still needs to find its family.
 func (r *PostgresRefreshTokenRepository) FindFamilyByHash(ctx context.Context, userID, tokenHash string) (*models.RefreshTokenFamily, error) {
 	query := `
 		SELECT id, user_id, token_hash, previous_token_hash, previous_token_rotated_at, expires_at, revoked_at, created_at
@@ -52,9 +51,8 @@ func (r *PostgresRefreshTokenRepository) FindFamilyByHash(ctx context.Context, u
 	return family, nil
 }
 
-// RotateFamily shifts the current hash into previous_token_hash (recording
-// when the shift happened) and sets the new current hash/expiry, all in one
-// UPDATE — the family stays a single overwritten row, never an appended chain.
+// RotateFamily shifts the current hash into previous_token_hash and sets
+// the new current hash/expiry — one overwritten row, never an appended chain.
 func (r *PostgresRefreshTokenRepository) RotateFamily(ctx context.Context, familyID, newTokenHash string, newExpiresAt time.Time) error {
 	query := `
 		UPDATE refresh_tokens

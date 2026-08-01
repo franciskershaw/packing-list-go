@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type CustomClaims struct {
@@ -32,7 +33,10 @@ func GenerateAccessToken(email string, userID string, secret string) (string, er
 
 func GenerateRefreshToken(userID string, secret string) (string, error) {
 	claims := jwt.RegisteredClaims{
-		Subject:   userID,
+		Subject: userID,
+		// ID avoids collisions when two tokens are issued for the same user
+		// within the same second (other claims are second-precision).
+		ID:        uuid.NewString(),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenExpiry)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}

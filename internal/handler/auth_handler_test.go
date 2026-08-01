@@ -144,10 +144,7 @@ func testConfig(environment string) *config.Config {
 	}
 }
 
-// hashRefreshToken mirrors the SHA-256 hashing PACK-027's RefreshToken/
-// Logout handlers use to look up a refresh_tokens row from the raw cookie
-// value (docs/handoffs/PACK-027.md) — tests need to compute the same hash
-// to set up matching mock expectations.
+// hashRefreshToken mirrors the handler's own hashing, for mock expectations.
 func hashRefreshToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
@@ -185,6 +182,9 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 	oauthMgr.On("ExchangeCodeForToken", mock.Anything, "auth-code").Return(fakeToken, nil)
 	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
 	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
+	refreshTokenRepo.On("DeleteStaleFamiliesForUser", mock.Anything, user.ID.String()).Return(nil)
+	refreshTokenRepo.On("CreateFamily", mock.Anything, user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
+		Return(&models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID}, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
 	r := newTestRouter(h)
@@ -213,6 +213,7 @@ func TestGoogleCallback_HappyPath(t *testing.T) {
 
 	oauthMgr.AssertExpectations(t)
 	userRepo.AssertExpectations(t)
+	refreshTokenRepo.AssertExpectations(t)
 }
 
 func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
@@ -233,6 +234,9 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 	oauthMgr.On("ExchangeCodeForToken", mock.Anything, "auth-code").Return(fakeToken, nil)
 	oauthMgr.On("VerifyIDToken", mock.Anything, fakeToken).Return(fakeClaims, nil)
 	userRepo.On("GetOrCreateUser", mock.Anything, "test@example.com", "google-123", "Test User", "https://example.com/avatar.png").Return(user, nil)
+	refreshTokenRepo.On("DeleteStaleFamiliesForUser", mock.Anything, user.ID.String()).Return(nil)
+	refreshTokenRepo.On("CreateFamily", mock.Anything, user.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
+		Return(&models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID}, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("production"))
 	r := newTestRouter(h)
@@ -257,6 +261,7 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 
 	oauthMgr.AssertExpectations(t)
 	userRepo.AssertExpectations(t)
+	refreshTokenRepo.AssertExpectations(t)
 }
 
 func TestGoogleCallback_CreatesFamilyAndSweepsStale(t *testing.T) {
@@ -365,6 +370,9 @@ func TestRefreshToken_ValidCookie(t *testing.T) {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 
+	family := &models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
+	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
+	refreshTokenRepo.On("RotateFamily", mock.Anything, family.ID.String(), mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -383,6 +391,7 @@ func TestRefreshToken_ValidCookie(t *testing.T) {
 	assert.NotEmpty(t, body["accessToken"])
 
 	userRepo.AssertExpectations(t)
+	refreshTokenRepo.AssertExpectations(t)
 }
 
 func TestRefreshToken_UserNotFound(t *testing.T) {
@@ -396,6 +405,8 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 
+	family := &models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
+	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, nil)
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -414,6 +425,7 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	assert.Equal(t, "user not found", body["error"])
 
 	userRepo.AssertExpectations(t)
+	refreshTokenRepo.AssertExpectations(t)
 }
 
 func TestRefreshToken_UserLookupError(t *testing.T) {
@@ -427,6 +439,8 @@ func TestRefreshToken_UserLookupError(t *testing.T) {
 		t.Fatalf("failed to generate refresh token: %v", err)
 	}
 
+	family := &models.RefreshTokenFamily{ID: uuid.New(), UserID: user.ID, TokenHash: hashRefreshToken(refreshToken)}
+	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), hashRefreshToken(refreshToken)).Return(family, nil)
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(nil, errors.New("db error"))
 
 	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("development"))
@@ -445,6 +459,7 @@ func TestRefreshToken_UserLookupError(t *testing.T) {
 	assert.Equal(t, "failed to look up user", body["error"])
 
 	userRepo.AssertExpectations(t)
+	refreshTokenRepo.AssertExpectations(t)
 }
 
 func TestRefreshToken_MissingCookie(t *testing.T) {
@@ -588,10 +603,8 @@ func TestRefreshToken_RevokesOnStaleReuseOutsideGraceWindow(t *testing.T) {
 		PreviousTokenRotatedAt: &rotatedAt,
 	}
 
-	// .Maybe(): the real implementation should reject before ever reaching
-	// user lookup, but isn't in place yet — this guards the not-yet-updated
-	// handler (which still calls GetUserByID unconditionally) from a testify
-	// "unexpected call" panic without asserting either way on whether it runs.
+	// .Maybe(): the handler rejects before user lookup, so this shouldn't
+	// be called — .Maybe() just avoids a testify panic if that regresses.
 	userRepo.On("GetUserByID", mock.Anything, user.ID.String()).Return(user, nil).Maybe()
 	refreshTokenRepo.On("FindFamilyByHash", mock.Anything, user.ID.String(), previousHash).Return(family, nil)
 	refreshTokenRepo.On("RevokeFamily", mock.Anything, familyID.String()).Return(nil)
@@ -709,14 +722,8 @@ func TestLogout_RevokesMatchingFamily(t *testing.T) {
 	refreshTokenRepo.AssertExpectations(t)
 }
 
-// TestLogout_ClearsCookieEvenWithoutValidRefreshToken currently passes
-// against the pre-PACK-027 handler unchanged — Logout has always cleared
-// the cookie unconditionally, regardless of what's presented. Kept as an
-// explicit AC (the handoff doc calls it out) rather than assumed: once
-// PACK-027 adds real cookie parsing to Logout, this guards that an
-// unparseable token still degrades to "just clear the cookie" instead of
-// erroring. Flagged transparently as a green-before-red case, same as
-// PACK-035's precedent (LESSONS.md, 2026-07-28) — not a mistake.
+// Note: passes even pre-implementation — Logout has always cleared the
+// cookie unconditionally. Kept as an explicit AC, not assumed coverage.
 func TestLogout_ClearsCookieEvenWithoutValidRefreshToken(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	oauthMgr := &MockOAuthManager{}
