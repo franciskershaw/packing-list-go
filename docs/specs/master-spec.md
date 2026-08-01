@@ -1,8 +1,4 @@
-# Packing List API — Master Spec
-
-> Working title only — "Packing List API" is a placeholder naming
-> convention, not a final product name. Avoid introducing a product name
-> into code, docs, or endpoint naming until one is chosen.
+# Pack-It API — Master Spec
 
 > This spec was written retroactively (2026-07-07) via the `project-kickoff`
 > skill, after Epics 1-3 and part of Epic 4 already had code written against
@@ -434,6 +430,14 @@ the numbering implies an order.)*
     `WriteTimeout`/`IdleTimeout`), graceful shutdown
     (`signal.NotifyContext` + `Shutdown`), Gin release mode from
     `cfg.Environment`.
+  - **Follow-up noted 2026-08-01 (from PACK-027's grill-me):** once
+    graceful shutdown exists here, a global periodic sweep of expired/
+    revoked `refresh_tokens` rows (a `time.Ticker` goroutine, stopped
+    cleanly on shutdown) is the "correct" long-term replacement for
+    PACK-027's lazy per-user-on-login cleanup — that ticket deliberately
+    didn't build a ticker without shutdown coordination to stop it
+    against. Small addition to this ticket's scope when picked up, not a
+    separate ticket.
   - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
     items 1-2 (source findings).
 - **PACK-022** — Request-level abuse protection.
@@ -466,8 +470,13 @@ the numbering implies an order.)*
   - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
     item 8 (source finding).
 - **PACK-027** — Refresh token rotation with reuse detection.
-  - **Status: not started — deliberately deferred.** Pick up alongside
-    the future frontend auth-integration ticket, not standalone. See
+  - Deferral condition met: `packing-list-react`'s **PACKFE-002** (Google
+    sign-in & session restore) is Done, so this is no longer standalone
+    pickup. Grilled 2026-08-01 — see `docs/handoffs/PACK-027.md` for the
+    full decision trail (family model, grace window, cleanup approach,
+    a flagged `packing-list-react` follow-up for mid-session force-
+    sign-out on revocation).
+  - **Status: not started.** See
     `docs/handoffs/audit-2026-07-11-findings.md` item 9 (source finding).
 - **PACK-028** — Minor security/idiom cleanup.
   - Bundles: `email_verified` check, refresh-flow UUID/subject
