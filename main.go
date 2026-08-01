@@ -27,6 +27,7 @@ import (
 
 const tokenSweepInterval = time.Hour
 const shutdownGracePeriod = 10 * time.Second
+const maxRequestBodyBytes = 1 << 20 // 1 MB
 
 var globalRateLimit = limiter.Rate{Period: time.Minute, Limit: 60}
 var authRateLimit = limiter.Rate{Period: time.Minute, Limit: 10}
@@ -70,6 +71,7 @@ func main() {
 	gin.SetMode(configureGinMode(cfg.Environment))
 	server := gin.Default()
 	server.Use(middleware.ErrorLogger())
+	server.Use(middleware.BodyLimit(maxRequestBodyBytes))
 	server.Use(middleware.RateLimit(memory.NewStore(), globalRateLimit))
 
 	// Health check (public)

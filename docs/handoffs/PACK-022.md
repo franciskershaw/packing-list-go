@@ -106,7 +106,7 @@ Key decisions from interview:
       their own stricter rate limiter (`Rate{Period: time.Minute, Limit:
       10}`) applied via `.Use()` on that group, independent of the global
       limiter.
-- [ ] AC4 — `middleware.BodyLimit(maxBytes int64) gin.HandlerFunc` returns
+- [x] AC4 — `middleware.BodyLimit(maxBytes int64) gin.HandlerFunc` returns
       413 with `gin.H{"error": "request body too large"}` for any request
       body exceeding 1 MB; requests under the cap are unaffected and still
       bind normally downstream. Applied globally via `server.Use(...)`.
