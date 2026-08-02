@@ -480,8 +480,8 @@ the numbering implies an order.)*
     `docs/handoffs/audit-2026-07-11-findings.md` item 6.
 - **PACK-025** — DB indexes migration.
   - FK columns and `user_id` columns have no indexes beyond primary keys.
-  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
-    item 7 (source finding).
+  - **Status: Done.** See `docs/handoffs/PACK-025.md`. Source finding:
+    `docs/handoffs/audit-2026-07-11-findings.md` item 7.
 - **PACK-026** — OpenAPI spec.
   - Generate from the existing handlers as the explicit frontend-contract
     bridge artifact. No functional coupling to PACK-025 — may get pulled

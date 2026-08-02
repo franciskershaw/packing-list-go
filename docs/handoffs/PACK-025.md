@@ -111,3 +111,7 @@ Key decisions from the interview:
     at least available to the planner, understanding the planner may still
     choose `Seq Scan` at current row counts — this step confirms the index
     was built correctly, not that it's currently being chosen.
+
+## Close-out
+
+Completed 2026-08-02. Retro entry in LESSONS.md.

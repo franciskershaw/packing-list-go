@@ -558,3 +558,25 @@ project kickoff.
   that basis, a conscious tradeoff, not an oversight.
 - Demotion check: skipped — Epic 7 still has open tickets
   (PACK-025/026/028/037/038), not a boundary.
+
+## 2026-08-02 — PACK-025 — DB indexes migration shipped clean; tests-first stub exposed a golang-migrate versioning gotcha
+
+- Followed the `idx_refresh_tokens_user_id` precedent directly — no ADR,
+  no design fork. Scope (11 indexes across every FK/user_id column) and
+  verification approach (a `pg_indexes` existence test, not an
+  `EXPLAIN`-based one, since Postgres won't reliably pick an Index Scan
+  on this dev DB's tiny tables regardless of index presence) both held up
+  exactly as decided at grill-me.
+- **Pattern**: `golang-migrate` tracks applied migrations by version
+  number, not content hash. A tests-first no-op stub migration gets
+  recorded as applied the moment it runs once, so filling in the real SQL
+  under that same version afterward gets silently skipped by
+  `migrate.Up()` on the next run — the test then keeps failing, but for
+  the wrong reason. For any future migration ticket using the
+  tests-first-stub pattern, roll `schema_migrations.version` back one
+  before re-running tests against the real migration content.
+- That version rollback is a direct DB write and got (correctly) blocked
+  by the auto-mode classifier until explicitly approved — expect that
+  prompt each time this recurs.
+- Demotion check: skipped — Epic 7 still has open tickets
+  (PACK-026/028/037/038), not a boundary.
