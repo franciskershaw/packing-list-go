@@ -96,19 +96,19 @@ Key decisions from interview:
 
 ## Acceptance criteria
 
-- [ ] AC1 — `.github/workflows/ci.yml` exists, triggered on `push` and
+- [x] AC1 — `.github/workflows/ci.yml` exists, triggered on `push` and
       `pull_request`, running in this order: `gofmt -l .` (fails if
       non-empty output), `go vet ./...`, `golangci-lint-action` (default
       config), `govulncheck ./...`, `go test ./...` (with `DATABASE_URL`
       from a repo secret in the job's env, so the repository suite runs
       for real). Go version pinned via `go-version-file: go.mod`.
-- [ ] AC2 — `internal/repository/main_test.go`'s `TestMain`: missing
+- [x] AC2 — `internal/repository/main_test.go`'s `TestMain`: missing
       `DATABASE_URL` without `ALLOW_SKIP_DB_TESTS=1` set is `os.Exit(1)`
       with a `FATAL: DATABASE_URL not set...` message printed to stdout.
       Missing `DATABASE_URL` with `ALLOW_SKIP_DB_TESTS=1` set keeps
       today's behavior (skip message, `os.Exit(0)`). `DATABASE_URL` set
       is unaffected either way.
-- [ ] AC3 — a new root-level test file (e.g. `db_failloud_test.go`,
+- [x] AC3 — a new root-level test file (e.g. `db_failloud_test.go`,
       `package main`) has a subprocess test asserting both branches of
       AC2's behavior via `exec.Command`, per the Context note on
       placement (must not live inside `internal/repository`).
@@ -147,7 +147,16 @@ Key decisions from interview:
   a throwaway commit and confirm the workflow fails at that specific step,
   before reverting it. Not a `.http` file addition — this ticket has no
   new HTTP-reachable behavior.
+  **Actual outcome, 2026-08-02**: the "confirm all five steps pass" half
+  happened for real, repeatedly — every gate (golangci-lint's version
+  resolution, govulncheck's 8 findings, and finally the `DEV_DATABASE_URL`
+  secret itself) failed at least once for a genuine reason and was fixed,
+  not rubber-stamped; see LESSONS.md for the full account. The
+  deliberate-break-then-revert half was explicitly waived by the user at
+  close-out, on the judgment that the pipeline had already proven it fails
+  on real problems multiple times over during setup — a conscious
+  tradeoff, not an oversight.
 
 ## Close-out
 
-Not started.
+Completed 2026-08-02. Retro entry in LESSONS.md.

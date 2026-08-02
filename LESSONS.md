@@ -507,3 +507,54 @@ project kickoff.
   written, so noting it here. See `~/.claude/hooks/check_comment_terseness.py`.
 - Demotion check: skipped — Epic 7 still has several open tickets
   (PACK-024/025/026/028/037), not a boundary.
+
+## 2026-08-02 — PACK-024 — First-ever CI pipeline shipped; every gate failed for a real reason at least once before going green
+
+- Scope split cleanly at grill-me: PACK-038 (Docker/deployment target)
+  filed separately, since the audit finding this ticket traces to only
+  ever named CI gates and the fail-loud DB-test fix, not containerization.
+- `golangci-lint-action@v6` only knows `golangci-lint` v1.x releases
+  (built with Go 1.24) — too old to lint a `go 1.26.2` module at all.
+  Needed `@v9` just to get a v2.x release in the door.
+- **Biggest surprise**: `golangci-lint`'s own default
+  `--max-same-issues=3` silently caps output per identical message —
+  the first real run showed 16 issues; fixing those revealed the next 3
+  behind the cap, and so on. Uncapping it (`--max-same-issues=0
+  --max-issues-per-linter=0`) revealed the true count: 121, ~110 of them
+  the same `t.Cleanup(db.DB.Exec(...))` pattern repeated across nearly
+  every repository test file. Fixed via one shared `cleanupExec` test
+  helper instead of ~110 hand-duplicated edits, and added the uncapped
+  flags to `ci.yml` itself so future runs can't hide behind the same cap.
+- Self-caught bug, not user-caught: the Perl regex used for that bulk fix
+  silently ate 18 lines' trailing newlines, merging them with the next
+  statement via a stray tab. Caught by `gofmt -l`/`go build` failing with
+  parse errors — not by eyeballing the diff — then independently verified
+  every SQL query string survived byte-for-byte via a before/after diff
+  of every backtick-quoted string in the changed files.
+- `govulncheck` found 8 real vulnerabilities on its first-ever run: 7
+  fixed by bumping `go.mod`'s toolchain directive to `go1.26.5`
+  (`GOTOOLCHAIN=auto` picked it up transparently, locally and in CI), 1
+  by bumping `golang.org/x/text`.
+- Final blocker: the `DEV_DATABASE_URL` GitHub secret was pasted straight
+  from the `.env` file's `KEY='value'` shell-quoted syntax, literal quote
+  characters and all. `pgx.ParseConfig` didn't reject it outright — it
+  silently fell back to Unix-socket/OS-user defaults (`user=runner
+  database=`), which read like a connection problem, not a quoting one,
+  until traced back.
+- **Pattern**: when wiring up a linter for the first time on an existing
+  codebase, run it once with same-issue/per-linter caps disabled before
+  committing to a fix scope — the default-capped count can understate the
+  real backlog by a large factor (7.5x here), and re-scoping mid-fix after
+  discovering that is worse than sizing it correctly up front.
+- **Promoted to this project's own `CLAUDE.md` Testing section** (not the
+  global file): run `golangci-lint` locally (same uncapped flags as CI)
+  before presenting a ticket's work as done, now that the tool is
+  actually installed and configured — cheap going forward even though
+  setting it up on day one wouldn't have been free either.
+- Manual verification was real but partial: every gate failed for a
+  genuine reason at least once during setup and was fixed, not
+  rubber-stamped — but the handoff doc's planned
+  deliberate-break-then-revert step was explicitly waived at close-out on
+  that basis, a conscious tradeoff, not an oversight.
+- Demotion check: skipped — Epic 7 still has open tickets
+  (PACK-025/026/028/037/038), not a boundary.

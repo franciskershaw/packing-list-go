@@ -476,8 +476,8 @@ the numbering implies an order.)*
     Likely multi-AC (CI secrets, DB access from CI) — a good real
     exercise of `grill-me`'s new-pattern-vs-precedent question once
     picked up.
-  - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`
-    item 6 (source finding).
+  - **Status: Done.** See `docs/handoffs/PACK-024.md`. Source finding:
+    `docs/handoffs/audit-2026-07-11-findings.md` item 6.
 - **PACK-025** — DB indexes migration.
   - FK columns and `user_id` columns have no indexes beyond primary keys.
   - **Status: not started.** See `docs/handoffs/audit-2026-07-11-findings.md`

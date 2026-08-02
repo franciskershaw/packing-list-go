@@ -68,6 +68,16 @@ API", "this service") instead.
   test's failure is visible per run instead of the whole suite's. Run
   tests to confirm every test fails at runtime for the right reason
   before implementing.
+- **Lint**: run `golangci-lint run --max-same-issues=0 --max-issues-per-linter=0 ./...`
+  locally before presenting a ticket's work as done — the same tool and
+  flags `.github/workflows/ci.yml` runs, not a separate check. The
+  uncapped flags matter: `golangci-lint`'s own defaults
+  (`--max-same-issues=3`) silently show only 3 occurrences of an
+  identical finding and hide the rest, which understated a real backlog
+  by 7.5x (16 shown vs. 121 actual) the one time this project first wired
+  up linting — see `LESSONS.md`, 2026-08-02, PACK-024. Install once via
+  `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`
+  if not already on `PATH`.
 
 ## Docs
 
