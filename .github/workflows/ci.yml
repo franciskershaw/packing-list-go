@@ -4,6 +4,15 @@ on:
   push:
   pull_request:
 
+env:
+  DOCKER_IMAGE: docker.io/${{ secrets.DOCKER_USERNAME }}/packing-list-api
+  DOMAIN: api.packitapp.co.uk
+  CONTAINER_NAME: packing-list-api
+  NGINX_PATH: /etc/nginx/sites-available
+  # Confirm this port is free on the droplet before the first deploy —
+  # events-api uses :5500, salary-split-api uses :5300.
+  PORT: 5400
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -40,3 +49,237 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+  build:
+    needs: checks
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ env.DOMAIN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        timeout-minutes: 5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Tag current production as previous
+        id: backup
+        continue-on-error: true
+        run: |
+          if docker pull ${{ env.DOCKER_IMAGE }}:latest; then
+            echo "Previous version exists, creating backup tag"
+            docker tag ${{ env.DOCKER_IMAGE }}:latest ${{ env.DOCKER_IMAGE }}:previous
+            docker push ${{ env.DOCKER_IMAGE }}:previous
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "No previous version found, skipping backup"
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.DOCKER_IMAGE }}:latest
+          cache-to: type=gha,mode=max
+        timeout-minutes: 15
+
+      - name: Build Summary
+        run: |
+          echo "### Build Complete :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: ${{ env.DOCKER_IMAGE }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- SHA: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Rollback Available: ${{ steps.backup.outputs.available }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ env.DOMAIN }}
+    concurrency:
+      group: production_environment
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy Nginx configuration
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          source: "nginx/${{ env.CONTAINER_NAME }}.conf"
+          target: "/home/${{ secrets.DO_USERNAME }}/nginx/"
+          strip_components: 1
+          timeout: 30s
+
+      - name: Configure Nginx and SSL
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script_stop: true
+          timeout: 2m
+          script: |
+            echo "Starting nginx configuration..."
+            SITE_CONFIG="${{ env.NGINX_PATH }}/${{ env.DOMAIN }}"
+
+            if [ -f "$SITE_CONFIG" ]; then
+              echo "Checking existing nginx configuration..."
+              if grep -q "ssl_certificate" "$SITE_CONFIG"; then
+                echo "SSL configuration exists, preserving current nginx config"
+                exit 0
+              fi
+            fi
+
+            echo "Setting up new nginx config..."
+            NGINX_SOURCE="/home/${{ secrets.DO_USERNAME }}/nginx/${{ env.CONTAINER_NAME }}.conf"
+            if [ ! -f "$NGINX_SOURCE" ]; then
+              echo "Error: nginx configuration file not found"
+              exit 1
+            fi
+
+            sudo mv "$NGINX_SOURCE" "$SITE_CONFIG"
+            sudo ln -sf "$SITE_CONFIG" "/etc/nginx/sites-enabled/"
+
+            echo "Testing nginx configuration..."
+            sudo nginx -t
+
+            if [ ! -f "/etc/letsencrypt/live/${{ env.DOMAIN }}/fullchain.pem" ]; then
+              echo "Setting up SSL certificate..."
+              sudo certbot --nginx -d ${{ env.DOMAIN }} \
+              --nginx-server-root /etc/nginx/ \
+              --non-interactive \
+              --agree-tos \
+              --email ${{ secrets.CERTBOT_EMAIL }} \
+              --redirect
+            fi
+            echo "Reloading nginx..."
+            sudo systemctl reload nginx
+
+      - name: Deploy Docker Container
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script_stop: true
+          timeout: 5m
+          script: |
+            echo "Deploying Docker container..."
+
+            echo "Cleaning up existing containers..."
+            docker stop ${{ env.CONTAINER_NAME }} ${{ env.CONTAINER_NAME }}-new || true
+            docker rm ${{ env.CONTAINER_NAME }} ${{ env.CONTAINER_NAME }}-new || true
+
+            echo "Pulling latest image..."
+            docker pull ${{ env.DOCKER_IMAGE }}:latest
+
+            echo "Starting new container..."
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }}-new \
+              --restart unless-stopped \
+              -p ${{ env.PORT }}:${{ env.PORT }} \
+              -e APP_ENV=production \
+              -e PORT=${{ env.PORT }} \
+              -e DATABASE_URL='${{ secrets.PROD_DATABASE_URL }}' \
+              -e JWT_SECRET_ACCESS='${{ secrets.JWT_SECRET_ACCESS }}' \
+              -e JWT_SECRET_REFRESH='${{ secrets.JWT_SECRET_REFRESH }}' \
+              -e JWT_SECRET_OAUTH_STATE='${{ secrets.JWT_SECRET_OAUTH_STATE }}' \
+              -e GOOGLE_CLIENT_ID='${{ secrets.GOOGLE_CLIENT_ID }}' \
+              -e GOOGLE_CLIENT_SECRET='${{ secrets.GOOGLE_CLIENT_SECRET }}' \
+              -e GOOGLE_REDIRECT_URI='${{ secrets.GOOGLE_REDIRECT_URI }}' \
+              -e FRONTEND_URL='${{ secrets.FRONTEND_URL }}' \
+              ${{ env.DOCKER_IMAGE }}:latest
+
+            sleep 15
+
+            if ! docker ps | grep -q "${{ env.CONTAINER_NAME }}-new"; then
+              echo "Container failed to start"
+              docker logs ${{ env.CONTAINER_NAME }}-new
+              exit 1
+            fi
+
+      - name: Health Check
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script_stop: true
+          script: |
+            HEALTH_CHECK_ATTEMPTS=0
+            MAX_ATTEMPTS=10
+
+            until [ $HEALTH_CHECK_ATTEMPTS -eq $MAX_ATTEMPTS ] || curl -sf http://localhost:${{ env.PORT }}/health > /dev/null; do
+              echo "Attempt $((HEALTH_CHECK_ATTEMPTS + 1))/$MAX_ATTEMPTS"
+              HEALTH_CHECK_ATTEMPTS=$((HEALTH_CHECK_ATTEMPTS + 1))
+              sleep 3
+            done
+
+            if [ $HEALTH_CHECK_ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+              echo "Health check failed — new container never became healthy. Rolling back to :previous."
+              docker logs ${{ env.CONTAINER_NAME }}-new
+              docker rm -f ${{ env.CONTAINER_NAME }}-new || true
+
+              docker pull ${{ env.DOCKER_IMAGE }}:previous
+              docker run -d \
+                --name ${{ env.CONTAINER_NAME }} \
+                --restart unless-stopped \
+                -p ${{ env.PORT }}:${{ env.PORT }} \
+                -e APP_ENV=production \
+                -e PORT=${{ env.PORT }} \
+                -e DATABASE_URL='${{ secrets.PROD_DATABASE_URL }}' \
+                -e JWT_SECRET_ACCESS='${{ secrets.JWT_SECRET_ACCESS }}' \
+                -e JWT_SECRET_REFRESH='${{ secrets.JWT_SECRET_REFRESH }}' \
+                -e JWT_SECRET_OAUTH_STATE='${{ secrets.JWT_SECRET_OAUTH_STATE }}' \
+                -e GOOGLE_CLIENT_ID='${{ secrets.GOOGLE_CLIENT_ID }}' \
+                -e GOOGLE_CLIENT_SECRET='${{ secrets.GOOGLE_CLIENT_SECRET }}' \
+                -e GOOGLE_REDIRECT_URI='${{ secrets.GOOGLE_REDIRECT_URI }}' \
+                -e FRONTEND_URL='${{ secrets.FRONTEND_URL }}' \
+                ${{ env.DOCKER_IMAGE }}:previous
+
+              echo "::error::Deploy failed health check — rolled back to :previous. Investigate before retrying."
+              exit 1
+            fi
+
+            echo "Container healthy, finalizing deployment..."
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rm ${{ env.CONTAINER_NAME }} || true
+            docker rename ${{ env.CONTAINER_NAME }}-new ${{ env.CONTAINER_NAME }}
+
+      - name: Update Job Summary
+        if: success()
+        run: |
+          echo "### Deployment Complete :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: Production" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: https://${{ env.DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Container: ${{ env.CONTAINER_NAME }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update Job Summary on Failure
+        if: failure()
+        run: |
+          echo "### Deployment Failed :x:" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the logs for more details." >> $GITHUB_STEP_SUMMARY

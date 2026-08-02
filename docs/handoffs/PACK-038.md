@@ -163,39 +163,45 @@ Key decisions from the interview:
 
 ## Acceptance criteria
 
-- [ ] `Dockerfile` added: multi-stage build, `golang:1.26-alpine` (or
-      whatever tag matches `go.mod`'s current toolchain directive) builder
+- [x] `Dockerfile` added: multi-stage build, `golang:1.26-alpine` builder
       stage producing a `CGO_ENABLED=0 GOOS=linux` static binary, final
       stage `gcr.io/distroless/static`. `.dockerignore` added alongside it.
-- [ ] `internal/handler/auth_handler.go`'s `setRefreshCookie` sets
+      Verified locally: builds to a 38.9MB image, runs against the real
+      dev Neon DB (migrations apply via the `//go:embed`'d `db/migrations`
+      — no filesystem access needed), `/health` returns 200.
+- [x] `internal/handler/auth_handler.go`'s `setRefreshCookie` sets
       `SameSite=None` when `cfg.Environment == "production"`, `Lax`
-      otherwise; comment at lines 68-73 updated to reflect the new
-      behavior instead of describing the now-superseded assumption.
-      `oauthState` cookie functions unchanged.
-- [ ] New CORS middleware (`internal/middleware/cors.go` + test file)
+      otherwise; comment updated to reflect the new behavior instead of
+      describing the now-superseded assumption. `oauthState` cookie
+      functions unchanged.
+- [x] New CORS middleware (`internal/middleware/cors.go` + test file)
       allowing only `cfg.FrontendURL` as origin, with credentials;
       registered in `main.go`.
-- [ ] `.github/workflows/ci.yml` gains a `build-and-deploy` job
-      (`needs: checks`, `if: github.ref == 'refs/heads/main' &&
-      github.event_name == 'push'`) that: logs into Docker Hub, tags
-      current `:latest` as `:previous`, builds and pushes the image
-      (`docker/build-push-action`, `linux/amd64`, GHA layer caching),
-      then SSHs to the Droplet to install/verify the `api.packitapp.co.uk`
-      nginx server block + certbot cert (idempotent — skip if SSL config
-      already present), and performs the blue-green container swap
-      (`<name>-new` → host-side curl poll of `/health` → stop/remove old →
-      rename) mirroring `events-api`/`salary-split-api`'s `deploy.yml`,
-      minus the in-container `--health-cmd` flag (no shell/curl in the
-      distroless image), **plus** an automated rollback: on health-poll
-      timeout, remove the failed `-new` container, pull `:previous`, and
-      run it back under the real container name before exiting 1 — a gap
-      neither reference repo's `deploy.yml` actually closes today (see
-      Context).
-- [ ] `nginx/packing-list-api.conf` added to the repo (matching
+- [x] `.github/workflows/ci.yml` gains `build` and `deploy` jobs
+      (`build` has `needs: checks` and
+      `if: github.ref == 'refs/heads/main' && github.event_name == 'push'`;
+      `deploy` has `needs: build`, transitively gated on `checks` too) that:
+      log into Docker Hub, tag current `:latest` as `:previous`, build and
+      push the image (`docker/build-push-action`, `linux/amd64`, GHA layer
+      caching), then SSH to the Droplet to install/verify the
+      `api.packitapp.co.uk` nginx server block + certbot cert (idempotent —
+      skip if SSL config already present), and perform the blue-green
+      container swap (`<name>-new` → host-side curl poll of `/health` →
+      stop/remove old → rename) mirroring `events-api`/`salary-split-api`'s
+      `deploy.yml`, minus the in-container `--health-cmd` flag (no shell/
+      curl in the distroless image), **plus** an automated rollback: on
+      health-poll timeout, remove the failed `-new` container, pull
+      `:previous`, and run it back under the real container name before
+      exiting 1 — a gap neither reference repo's `deploy.yml` actually
+      closes today (see Context). YAML structure and all script blocks
+      validated locally (`ruby -ryaml`, `bash -n`); not yet run for real
+      (needs the secrets below).
+- [x] `nginx/packing-list-api.conf` added to the repo (matching
       `events-api/nginx/*.conf`'s shape), proxying `api.packitapp.co.uk`
-      to `localhost:<chosen-port>` — port chosen to avoid colliding with
-      the Droplet's existing `:5300` (salary-split-api) and `:5500`
-      (events-api).
+      to `localhost:5400` — chosen to avoid colliding with the Droplet's
+      existing `:5300` (salary-split-api) and `:5500` (events-api); still
+      needs confirming as actually free on the Droplet itself before first
+      deploy.
 - [ ] All required GitHub repo secrets added (see manual steps below) —
       `DO_HOST`, `DO_USERNAME`, `DO_SSH_KEY`, `DOCKER_USERNAME`,
       `DOCKER_PASSWORD`, `CERTBOT_EMAIL`, `PROD_DATABASE_URL`,
@@ -271,9 +277,11 @@ surface is the cookie/CORS change:
 
 ## Manual steps (not code — tracked here since this ticket is mostly ops)
 
-1. **Neon**: check whether IP Allow is enabled on the current project; if
-   so, add the Droplet's IP once known. Create a new `production` branch;
-   copy its connection string.
+1. ~~**Neon**: check whether IP Allow is enabled~~ — **done**. Project
+   Settings → Networking → "Allow traffic via the public internet" is
+   enabled (the default), confirming no IP allowlist is blocking the
+   Droplet. Still to do: create a new `production` branch; copy its
+   connection string.
 2. **Neon (production branch)**: after first deploy (migrations
    auto-apply on startup), run `db/seeds/categories.sql` against the new
    `production` branch via **Neon's web SQL Editor** — not `psql`, which
@@ -284,25 +292,40 @@ surface is the cookie/CORS change:
    count once is a cheap sanity check on a branch that's never been seeded
    before). Item creation has no categories to attach to until this runs —
    same gap PACK-033 fixed for the dev branch.
-3. **Cloudflare**: add `packitapp.co.uk` as a site (free tier), add an A
-   record `api` → Droplet IP, switch the domain's nameservers at the
-   registrar to Cloudflare's, wait for propagation, set SSL/TLS mode to
-   Full (Strict).
-4. **Google Cloud Console**: add `https://api.packitapp.co.uk/auth/google/callback`
-   as an authorized redirect URI on the existing OAuth client.
-5. **Droplet**: confirm a free port (avoiding the existing `:5300`/
-   `:5500`) for `packing-list-api`'s container.
-6. **Docker Hub**: confirm/create an access token for `DOCKER_PASSWORD` if
-   the existing one used by the other two repos isn't being reused.
-7. **GitHub repo secrets** (`packing-list-go` settings — these do not
-   carry over from `events-api`/`salary-split-api` even though some values
-   are shared, e.g. `DO_HOST`/`DOCKER_USERNAME`): `DO_HOST`, `DO_USERNAME`,
-   `DO_SSH_KEY`, `DOCKER_USERNAME`, `DOCKER_PASSWORD`, `CERTBOT_EMAIL`,
-   `PROD_DATABASE_URL`, freshly-generated (not reused from `.env`)
-   `JWT_SECRET_ACCESS`/`JWT_SECRET_REFRESH`/`JWT_SECRET_OAUTH_STATE`,
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+3. ~~**Cloudflare**: add `packitapp.co.uk` as a site, A record `api` →
+   Droplet IP, switch nameservers, set SSL/TLS mode to Full (Strict)~~ —
+   **done**.
+4. ~~**Google Cloud Console**: add the callback as an authorized redirect
+   URI~~ — **done**. `https://api.packitapp.co.uk/auth/google/callback`
+   added to Authorized redirect URIs; that's the only entry this flow
+   needs — deliberately not adding an `http://` variant (this app's
+   `GOOGLE_REDIRECT_URI` config only ever holds the `https://` value, so
+   an `http://` entry could never legitimately fire) or any Authorized
+   JavaScript origins entry (that field only applies to a client-side
+   Google JS SDK flow — confirmed `packing-list-react` has no such
+   integration; this app's login is a server-side redirect end to end).
+5. ~~**Droplet**: confirm a free port~~ — **done**. `5400` confirmed free
+   via `docker ps` (only `5300`/`5500` in use) and `sudo ss -tlnp`.
+6. ~~**Docker Hub**: confirm/create an access token~~ — **done**.
+7. **GitHub Environment + secrets** (`packing-list-go` repo settings —
+   values do not carry over from `events-api`/`salary-split-api` even
+   where shared, e.g. `DO_HOST`/`DOCKER_USERNAME`). Unlike PACK-024's
+   `DEV_DATABASE_URL` (a plain repository secret — fine for CI, visible to
+   every workflow run regardless), `ci.yml`'s `build`/`deploy` jobs
+   reference `environment: { name: production }`, so these belong in a
+   named **GitHub Environment**, not repository-level secrets: Settings →
+   Environments → New environment → `production` (exact match, case-
+   sensitive), then add as that environment's own secrets: `DO_HOST`,
+   `DO_USERNAME`, `DO_SSH_KEY`, `DOCKER_USERNAME`, `DOCKER_PASSWORD`,
+   `CERTBOT_EMAIL`, `PROD_DATABASE_URL`, freshly-generated (not reused
+   from `.env`) `JWT_SECRET_ACCESS`/`JWT_SECRET_REFRESH`/
+   `JWT_SECRET_OAUTH_STATE`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
    `GOOGLE_REDIRECT_URI=https://api.packitapp.co.uk/auth/google/callback`,
-   `FRONTEND_URL=http://localhost:5173`.
+   `FRONTEND_URL=http://localhost:5173`. Scoping to the named environment
+   (rather than repo-level) keeps these invisible to any job that doesn't
+   reference it — e.g. a PR-triggered `checks` run never sees them.
+   Optional hardening while in there: restrict "Deployment branches and
+   tags" to `main` only.
 8. **First push to `main`** triggers `build-and-deploy`. Expect real
    debugging on the first run (consistent with PACK-024's own experience —
    "every gate failed for a real reason at least once").
