@@ -83,6 +83,7 @@ func main() {
 	server.Use(middleware.ErrorLogger())
 	server.Use(middleware.BodyLimit(maxRequestBodyBytes))
 	server.Use(middleware.RateLimit(memory.NewStore(), globalRateLimit))
+	server.Use(middleware.CORS(cfg.FrontendURL))
 
 	// Health check (public)
 	server.GET("/health", func(c *gin.Context) {

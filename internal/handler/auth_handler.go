@@ -63,16 +63,14 @@ func NewAuthHandler(userRepo UserRepository, oauthManager OAuthManager, refreshT
 	return &AuthHandler{userRepo: userRepo, oauthManager: oauthManager, refreshTokenRepo: refreshTokenRepo, cfg: cfg}
 }
 
-// setRefreshCookie sets the refreshToken cookie with consistent
-// Secure/SameSite/HttpOnly attributes for both issuing (GoogleCallback)
-// and clearing (Logout) it. SameSite=Lax remains correct after
-// PACK-032's redirect to a separate frontend origin: the frontend proxies
-// API calls through its own origin in local dev, so this cookie only
-// crosses directly to this API during the OAuth redirect itself, which
-// Lax always permits. Revisit if a cross-origin production deployment
-// changes that assumption.
+// setRefreshCookie sets the refreshToken cookie's attributes. SameSite=None
+// in production (backend and frontend are cross-site), Lax in dev.
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, value string, maxAge int) {
-	c.SetSameSite(http.SameSiteLaxMode)
+	sameSite := http.SameSiteLaxMode
+	if h.cfg.Environment == "production" {
+		sameSite = http.SameSiteNoneMode
+	}
+	c.SetSameSite(sameSite)
 	c.SetCookie("refreshToken", value, maxAge, "/", "", h.cfg.Environment == "production", true)
 }
 

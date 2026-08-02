@@ -6,9 +6,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CORS is a stub, not yet implemented.
+// CORS allows cross-origin requests only from allowedOrigin, with credentials.
 func CORS(allowedOrigin string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.AbortWithStatus(http.StatusNotImplemented)
+		origin := c.Request.Header.Get("Origin")
+		if origin != allowedOrigin {
+			c.Next()
+			return
+		}
+
+		c.Header("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Credentials", "true")
+
+		if c.Request.Method == http.MethodOptions {
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
 	}
 }
