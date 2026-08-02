@@ -43,13 +43,30 @@ deployment artifact exists in this repo today. Filed separately as
 
 Key decisions from interview:
 
-- **CI runs the real repository suite against the real Neon dev DB.**
-  `DATABASE_URL` is added as a GitHub Actions repo secret (same value as
-  local dev), so `go test ./...` in CI exercises `internal/repository/...`
-  for real, not just `internal/handler/...`. Adding the secret in GitHub's
-  repo settings is a manual step for the user to do themselves (not
-  something this ticket's implementation, or this session, touches — it's
-  a live credential, not code).
+- **CI runs the real repository suite against the real Neon dev DB — not
+  prod, and not just "for now."** Decided post-interview, 2026-08-02: the
+  repository test suite creates and deletes real rows on every run
+  (`repoUserID := uuid.New()`, plus `category_test.go`'s `sysID` exercising
+  the `user_id IS NULL` system-category path), running on every `push` and
+  every `pull_request`. That's fine against dev; against prod once it's
+  serving real traffic, CI would be writing/deleting synthetic data in a
+  database real users depend on, with no isolation between concurrent CI
+  runs and live traffic. Prod being currently unseeded doesn't change this
+  — it stays dev permanently, not as a placeholder to swap out.
+- **Secret naming, to avoid a future collision, not a future code
+  change.** The GitHub Actions secret is named `DEV_DATABASE_URL` (holding
+  the dev connection string), mapped to the job's `DATABASE_URL` env var
+  (`env: DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}`) — `main_test.go`
+  and `config.go` only ever read `DATABASE_URL` from their own process
+  env and don't know or care where the value came from, so this needed no
+  code change. The point of naming the *secret* itself `DEV_DATABASE_URL`
+  rather than `DATABASE_URL` is so the name `DATABASE_URL` (or
+  `PROD_DATABASE_URL`) stays free at the GitHub-secrets level for
+  whatever PACK-038's deployment ends up needing, with zero renaming
+  required later. Adding the `DEV_DATABASE_URL` secret in GitHub's repo
+  settings is a manual step for the user to do themselves (not something
+  this ticket's implementation, or this session, touches — it's a live
+  credential, not code).
 - **Fail-loud mechanism**: `ALLOW_SKIP_DB_TESTS=1` env var, explicit
   opt-in to skip. Missing `DATABASE_URL` without that flag set is
   `os.Exit(1)` with a `FATAL` message; with the flag set, behavior is

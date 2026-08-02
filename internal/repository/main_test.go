@@ -22,8 +22,12 @@ var (
 
 func TestMain(m *testing.M) {
 	if os.Getenv("DATABASE_URL") == "" {
-		fmt.Println("skipping repository tests: DATABASE_URL not set")
-		os.Exit(0)
+		if os.Getenv("ALLOW_SKIP_DB_TESTS") == "1" {
+			fmt.Println("skipping repository tests: DATABASE_URL not set (ALLOW_SKIP_DB_TESTS=1)")
+			os.Exit(0)
+		}
+		fmt.Println("FATAL: DATABASE_URL not set. Set it, or set ALLOW_SKIP_DB_TESTS=1 to skip intentionally.")
+		os.Exit(1)
 	}
 
 	if err := db.InitDB(os.Getenv("DATABASE_URL")); err != nil {
