@@ -1,6 +1,6 @@
 # Packing List — API
 
-<!-- One or two sentences: what this service does and who it's for. -->
+<!-- First up, one or two sentences: what this service does and who it's for. -->
 
 ## Table of Contents
 
