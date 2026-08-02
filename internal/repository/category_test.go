@@ -20,11 +20,17 @@ func TestGetCategories_ReturnsMixed(t *testing.T) {
 		`INSERT INTO categories (name) VALUES ($1) RETURNING id`, "repo-test-sys-"+uuid.NewString(),
 	).Scan(&sysID)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, sysID) })
+	t.Cleanup(func() {
+		_, err := db.DB.Exec(`DELETE FROM categories WHERE id = $1`, sysID)
+		assert.NoError(t, err)
+	})
 
 	userCat, err := catRepo.CreateCategory(ctx, repoUserID.String(), "repo-test-user-"+uuid.NewString())
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, userCat.ID) })
+	t.Cleanup(func() {
+		_, err := db.DB.Exec(`DELETE FROM categories WHERE id = $1`, userCat.ID)
+		assert.NoError(t, err)
+	})
 
 	cats, err := catRepo.GetCategories(ctx, repoUserID.String())
 	require.NoError(t, err)
@@ -52,7 +58,10 @@ func TestGetCategories_EmptySlice(t *testing.T) {
 		newUserID, "tmp-google-"+newUserID.String(), "tmp-"+newUserID.String()+"@example.com",
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, newUserID) })
+	t.Cleanup(func() {
+		_, err := db.DB.Exec(`DELETE FROM users WHERE id = $1`, newUserID)
+		assert.NoError(t, err)
+	})
 
 	cats, err := catRepo.GetCategories(ctx, newUserID.String())
 	require.NoError(t, err)
@@ -67,8 +76,7 @@ func TestCreateCategory(t *testing.T) {
 
 	cat, err := catRepo.CreateCategory(ctx, repoUserID.String(), name)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, cat.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, cat.ID)
 	assert.Equal(t, name, cat.Name)
 	assert.False(t, cat.IsSystem)
 	assert.NotEqual(t, uuid.Nil, cat.ID)
@@ -82,8 +90,7 @@ func TestGetCategoryByID(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), name)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 	cat, err := catRepo.GetCategoryByID(ctx, created.ID.String())
 	require.NoError(t, err)
 	require.NotNil(t, cat)
@@ -104,8 +111,7 @@ func TestUpdateCategory(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), "repo-test-update-orig-"+uuid.NewString())
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 	newName := "repo-test-update-new-" + uuid.NewString()
 	updated, err := catRepo.UpdateCategory(ctx, created.ID.String(), newName)
 	require.NoError(t, err)
@@ -134,8 +140,7 @@ func TestCategoryNameExistsForUser_True(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), name)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 	exists, err := catRepo.CategoryNameExistsForUser(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
 	assert.True(t, exists)
@@ -147,8 +152,7 @@ func TestCategoryNameExistsForUser_ExcludeID(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), name)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 	id := created.ID.String()
 	// When the current category is excluded the name should not conflict with itself
 	exists, err := catRepo.CategoryNameExistsForUser(ctx, repoUserID.String(), name, &id)
@@ -162,8 +166,7 @@ func TestCategoryNameExistsForUser_CaseInsensitive(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), name)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 	exists, err := catRepo.CategoryNameExistsForUser(ctx, repoUserID.String(), strings.ToUpper(name), nil)
 	require.NoError(t, err)
 	assert.True(t, exists, "name check should be case-insensitive")
@@ -174,8 +177,7 @@ func TestCategoryHasItems_False(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), "repo-test-hasitems-"+uuid.NewString())
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 	has, err := catRepo.CategoryHasItems(ctx, created.ID.String())
 	require.NoError(t, err)
 	assert.False(t, has)
@@ -186,10 +188,8 @@ func TestCategoryHasItems_True(t *testing.T) {
 
 	created, err := catRepo.CreateCategory(ctx, repoUserID.String(), "repo-test-hasitems-true-"+uuid.NewString())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		db.DB.Exec(`DELETE FROM items WHERE category_id = $1`, created.ID)
-		db.DB.Exec(`DELETE FROM categories WHERE id = $1`, created.ID)
-	})
+	cleanupExec(t, `DELETE FROM items WHERE category_id = $1`, created.ID)
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, created.ID)
 
 	_, err = db.DB.ExecContext(ctx,
 		`INSERT INTO items (category_id, user_id, name) VALUES ($1, $2, $3)`,

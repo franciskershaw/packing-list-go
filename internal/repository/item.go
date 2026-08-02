@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
@@ -32,7 +33,11 @@ func (r *ItemRepository) GetItems(ctx context.Context, userID string, categoryID
 	if err != nil {
 		return nil, fmt.Errorf("failed to query items: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	items := make([]models.Item, 0)
 	for rows.Next() {
@@ -58,7 +63,11 @@ func (r *ItemRepository) GetItemsByIDs(ctx context.Context, ids []string) ([]mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to query items by ids: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	items := make([]models.Item, 0, len(ids))
 	for rows.Next() {

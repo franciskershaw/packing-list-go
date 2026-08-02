@@ -3,7 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
@@ -43,7 +45,11 @@ func (r *PackingListRepository) BulkUpdatePackingListItems(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rerr := tx.Rollback(); rerr != nil && !errors.Is(rerr, sql.ErrTxDone) {
+			slog.Error("failed to rollback transaction", "err", rerr)
+		}
+	}()
 
 	for itemID, quantity := range changes {
 		if quantity == 0 {
@@ -158,7 +164,11 @@ func (r *PackingListRepository) GetPackingListItems(ctx context.Context, listID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query packing list items: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	items := make([]models.PackingListItem, 0)
 	for rows.Next() {

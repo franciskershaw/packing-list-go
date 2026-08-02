@@ -29,7 +29,7 @@ func TestErrorLogger_LogsAttachedErrors(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.ErrorLogger())
 	r.GET("/boom", func(c *gin.Context) {
-		c.Error(errors.New("boom"))
+		_ = c.Error(errors.New("boom"))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "something broke"})
 	})
 

@@ -19,8 +19,7 @@ func TestGetOrCreateUser_CreatesNewUser(t *testing.T) {
 	user, err := userRepo.GetOrCreateUser(ctx, email, googleID, "Test User", "http://example.com/avatar.png")
 	require.NoError(t, err)
 	require.NotNil(t, user)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, user.ID) })
-
+	cleanupExec(t, `DELETE FROM users WHERE id = $1`, user.ID)
 	assert.NotEqual(t, uuid.Nil, user.ID)
 	assert.Equal(t, googleID, user.GoogleID)
 	assert.Equal(t, email, user.Email)
@@ -35,8 +34,7 @@ func TestGetOrCreateUser_ReturnsExistingAndUpdatesLastLogin(t *testing.T) {
 
 	created, err := userRepo.GetOrCreateUser(ctx, email, googleID, "Original Name", "")
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM users WHERE id = $1`, created.ID)
 	time.Sleep(10 * time.Millisecond)
 
 	fetched, err := userRepo.GetOrCreateUser(ctx, email, googleID, "Ignored Name", "ignored-avatar")
@@ -55,8 +53,7 @@ func TestGetUserByID_Found(t *testing.T) {
 
 	created, err := userRepo.GetOrCreateUser(ctx, email, googleID, "Test User", "")
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM users WHERE id = $1`, created.ID)
 	fetched, err := userRepo.GetUserByID(ctx, created.ID.String())
 	require.NoError(t, err)
 	require.NotNil(t, fetched)
@@ -109,8 +106,7 @@ func TestInsertUser_OmittedColumnsDefaultToUsableValues(t *testing.T) {
 		id, "repo-test-google-"+id.String(), "repo-test-"+id.String()+"@example.com",
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, id) })
-
+	cleanupExec(t, `DELETE FROM users WHERE id = $1`, id)
 	fetched, err := userRepo.GetUserByID(ctx, id.String())
 	require.NoError(t, err)
 	require.NotNil(t, fetched)

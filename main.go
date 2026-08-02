@@ -50,7 +50,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Database init failed: %v\n", err)
 		os.Exit(1)
 	}
-	defer db.CloseDB()
+	defer func() {
+		if err := db.CloseDB(); err != nil {
+			slog.Error("failed to close db", "err", err)
+		}
+	}()
 
 	// Initialise Google OAuth manager once at startup (makes a network call)
 	oauthManager, err := auth.NewGoogleOAuthManager(

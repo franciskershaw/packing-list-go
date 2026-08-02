@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/franciskershaw/packing-list-go/db"
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func createTestItem(t *testing.T, catID uuid.UUID) uuid.UUID {
 	t.Helper()
 	item, err := itemRepo.CreateItem(context.Background(), repoUserID.String(), "repo-test-tmplitem-"+uuid.NewString(), catID.String())
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM items WHERE id = $1`, item.ID) })
+	cleanupExec(t, `DELETE FROM items WHERE id = $1`, item.ID)
 	return item.ID
 }
 
@@ -27,7 +26,7 @@ func createTestTemplate(t *testing.T) uuid.UUID {
 	t.Helper()
 	tmpl, err := templateRepo.CreateTemplate(context.Background(), repoUserID.String(), "repo-test-tmplitem-tmpl-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, tmpl.ID) })
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, tmpl.ID)
 	return tmpl.ID
 }
 

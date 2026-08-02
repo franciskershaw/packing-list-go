@@ -51,14 +51,20 @@ func TestMain(m *testing.M) {
 	)
 	if err != nil {
 		fmt.Printf("failed to create test user: %v\n", err)
-		db.CloseDB()
+		if cerr := db.CloseDB(); cerr != nil {
+			fmt.Printf("failed to close db: %v\n", cerr)
+		}
 		os.Exit(1)
 	}
 
 	code := m.Run()
 
 	// ON DELETE CASCADE on categories.user_id handles category cleanup
-	db.DB.Exec(`DELETE FROM users WHERE id = $1`, repoUserID)
-	db.CloseDB()
+	if _, err := db.DB.Exec(`DELETE FROM users WHERE id = $1`, repoUserID); err != nil {
+		fmt.Printf("failed to delete test user: %v\n", err)
+	}
+	if cerr := db.CloseDB(); cerr != nil {
+		fmt.Printf("failed to close db: %v\n", cerr)
+	}
 	os.Exit(code)
 }

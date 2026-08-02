@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
@@ -28,7 +29,11 @@ func (r *PackingListRepository) CreatePackingList(ctx context.Context, userID, n
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rerr := tx.Rollback(); rerr != nil && !errors.Is(rerr, sql.ErrTxDone) {
+			slog.Error("failed to rollback transaction", "err", rerr)
+		}
+	}()
 
 	query := `
 		INSERT INTO packing_lists (user_id, name, event_date, template_id)
@@ -71,6 +76,11 @@ func copyTemplateItemsTx(ctx context.Context, tx *sql.Tx, listID uuid.UUID, temp
 	if err != nil {
 		return nil, fmt.Errorf("failed to query template items: %w", err)
 	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	type templateItemRow struct {
 		itemID     uuid.UUID
@@ -83,16 +93,13 @@ func copyTemplateItemsTx(ctx context.Context, tx *sql.Tx, listID uuid.UUID, temp
 	for rows.Next() {
 		var tir templateItemRow
 		if err := rows.Scan(&tir.itemID, &tir.name, &tir.categoryID, &tir.quantity, &tir.notes); err != nil {
-			rows.Close()
 			return nil, fmt.Errorf("failed to scan template item: %w", err)
 		}
 		toCopy = append(toCopy, tir)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return nil, fmt.Errorf("failed to read template items: %w", err)
 	}
-	rows.Close()
 
 	items := make([]models.PackingListItem, 0, len(toCopy))
 	for _, tir := range toCopy {
@@ -182,7 +189,11 @@ func (r *PackingListRepository) GetPackingLists(ctx context.Context, userID stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to query packing lists: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	lists := make([]models.PackingList, 0)
 	for rows.Next() {
@@ -326,7 +337,11 @@ func (r *PackingListRepository) getPackingListCategories(ctx context.Context, li
 	if err != nil {
 		return nil, fmt.Errorf("failed to query packing list items: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	categories := make([]models.PackingListCategory, 0)
 	var current *models.PackingListCategory

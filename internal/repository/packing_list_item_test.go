@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/franciskershaw/packing-list-go/db"
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func createTestPackingList(t *testing.T) uuid.UUID {
 	t.Helper()
 	list, err := packingListRepo.CreatePackingList(context.Background(), repoUserID.String(), "repo-test-pli-list-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, list.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, list.ID)
 	return list.ID
 }
 

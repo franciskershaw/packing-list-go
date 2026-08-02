@@ -31,6 +31,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
+          args: --max-same-issues=0 --max-issues-per-linter=0
 
       - name: govulncheck
         run: |

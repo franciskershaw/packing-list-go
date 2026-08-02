@@ -23,7 +23,7 @@ func createTestUser(t *testing.T) uuid.UUID {
 		id, "repo-test-tmpl-google-"+id.String(), "repo-test-tmpl-"+id.String()+"@example.com",
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM users WHERE id = $1`, id) })
+	cleanupExec(t, `DELETE FROM users WHERE id = $1`, id)
 	return id
 }
 
@@ -33,8 +33,7 @@ func TestCreateTemplate_NameOnly(t *testing.T) {
 
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	assert.Equal(t, name, created.Name)
 	assert.Nil(t, created.Description)
 	assert.Equal(t, repoUserID, created.UserID)
@@ -48,8 +47,7 @@ func TestCreateTemplate_WithDescription(t *testing.T) {
 
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), name, &desc)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	require.NotNil(t, created.Description)
 	assert.Equal(t, desc, *created.Description)
 }
@@ -60,8 +58,7 @@ func TestGetTemplateByID_Found(t *testing.T) {
 
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	found, err := templateRepo.GetTemplateByID(ctx, created.ID.String())
 	require.NoError(t, err)
 	require.NotNil(t, found)
@@ -79,7 +76,7 @@ func TestGetTemplateByID_ItemCount(t *testing.T) {
 
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-getbyid-count-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	_, err = templateRepo.AddTemplateItem(ctx, created.ID.String(), itemA.String(), 1, nil)
 	require.NoError(t, err)
 	_, err = templateRepo.AddTemplateItem(ctx, created.ID.String(), itemB.String(), 1, nil)
@@ -103,13 +100,11 @@ func TestGetTemplates_ScopedToUser(t *testing.T) {
 	ctx := context.Background()
 	own, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-own-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, own.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, own.ID)
 	otherUser := createTestUser(t)
 	other, err := templateRepo.CreateTemplate(ctx, otherUser.String(), "repo-test-tmpl-other-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, other.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, other.ID)
 	templates, err := templateRepo.GetTemplates(ctx, repoUserID.String())
 	require.NoError(t, err)
 
@@ -134,7 +129,7 @@ func TestGetTemplates_ItemCount(t *testing.T) {
 
 	withItems, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-withitems-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, withItems.ID) })
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, withItems.ID)
 	_, err = templateRepo.AddTemplateItem(ctx, withItems.ID.String(), itemA.String(), 1, nil)
 	require.NoError(t, err)
 	_, err = templateRepo.AddTemplateItem(ctx, withItems.ID.String(), itemB.String(), 1, nil)
@@ -142,8 +137,7 @@ func TestGetTemplates_ItemCount(t *testing.T) {
 
 	empty, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-noitems-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, empty.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, empty.ID)
 	templates, err := templateRepo.GetTemplates(ctx, repoUserID.String())
 	require.NoError(t, err)
 
@@ -176,12 +170,10 @@ func TestGetTemplates_OrderedByUpdatedAtDesc(t *testing.T) {
 
 	older, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-older-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, older.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, older.ID)
 	newer, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-newer-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, newer.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, newer.ID)
 	// Force explicit, unambiguous timestamps rather than relying on clock
 	// resolution between the two creates above.
 	_, err = db.DB.ExecContext(ctx, `UPDATE templates SET updated_at = $1 WHERE id = $2`, time.Now().Add(-1*time.Hour), older.ID)
@@ -211,8 +203,7 @@ func TestUpdateTemplate_NameOnly(t *testing.T) {
 	desc := "Keep me"
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-upd-name-"+uuid.NewString(), &desc)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	newName := "repo-test-tmpl-upd-name-new-" + uuid.NewString()
 	updated, err := templateRepo.UpdateTemplate(ctx, created.ID.String(), &newName, nil)
 	require.NoError(t, err)
@@ -226,8 +217,7 @@ func TestUpdateTemplate_DescriptionOnly(t *testing.T) {
 	ctx := context.Background()
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-upd-desc-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	newDesc := "repo-test-tmpl-upd-desc-new-" + uuid.NewString()
 	updated, err := templateRepo.UpdateTemplate(ctx, created.ID.String(), nil, &newDesc)
 	require.NoError(t, err)
@@ -242,8 +232,7 @@ func TestUpdateTemplate_DescriptionEmptyStringNotNull(t *testing.T) {
 	desc := "Will be cleared"
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-upd-clear-"+uuid.NewString(), &desc)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	empty := ""
 	updated, err := templateRepo.UpdateTemplate(ctx, created.ID.String(), nil, &empty)
 	require.NoError(t, err)
@@ -256,8 +245,7 @@ func TestUpdateTemplate_Both(t *testing.T) {
 	ctx := context.Background()
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-upd-both-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	newName := "repo-test-tmpl-upd-both-new-" + uuid.NewString()
 	newDesc := "both updated"
 	updated, err := templateRepo.UpdateTemplate(ctx, created.ID.String(), &newName, &newDesc)
@@ -274,8 +262,7 @@ func TestUpdateTemplate_PreservesItems(t *testing.T) {
 	itemID := createTestItem(t, catID)
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), "repo-test-tmpl-preserve-items-"+uuid.NewString(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	_, err = templateRepo.AddTemplateItem(ctx, created.ID.String(), itemID.String(), 2, nil)
 	require.NoError(t, err)
 
@@ -307,8 +294,7 @@ func TestTemplateNameExistsForUser_True(t *testing.T) {
 	name := "repo-test-tmpl-exists-" + uuid.NewString()
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	exists, err := templateRepo.TemplateNameExistsForUser(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
 	assert.True(t, exists)
@@ -319,8 +305,7 @@ func TestTemplateNameExistsForUser_ExcludeID(t *testing.T) {
 	name := "repo-test-tmpl-exclude-" + uuid.NewString()
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	id := created.ID.String()
 	exists, err := templateRepo.TemplateNameExistsForUser(ctx, repoUserID.String(), name, &id)
 	require.NoError(t, err)
@@ -332,8 +317,7 @@ func TestTemplateNameExistsForUser_CaseInsensitive(t *testing.T) {
 	name := "repo-test-tmpl-case-" + uuid.NewString()
 	created, err := templateRepo.CreateTemplate(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	exists, err := templateRepo.TemplateNameExistsForUser(ctx, repoUserID.String(), strings.ToUpper(name), nil)
 	require.NoError(t, err)
 	assert.True(t, exists)
@@ -345,8 +329,7 @@ func TestTemplateNameExistsForUser_ScopedToUser(t *testing.T) {
 	otherUser := createTestUser(t)
 	created, err := templateRepo.CreateTemplate(ctx, otherUser.String(), name, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM templates WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM templates WHERE id = $1`, created.ID)
 	exists, err := templateRepo.TemplateNameExistsForUser(ctx, repoUserID.String(), name, nil)
 	require.NoError(t, err)
 	assert.False(t, exists, "another user's template name should not count as a conflict")

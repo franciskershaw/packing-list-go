@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/franciskershaw/packing-list-go/internal/models"
 	"github.com/google/uuid"
@@ -33,7 +34,11 @@ func (r *TemplateRepository) GetTemplates(ctx context.Context, userID string) ([
 	if err != nil {
 		return nil, fmt.Errorf("failed to query templates: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			slog.Error("failed to close rows", "err", cerr)
+		}
+	}()
 
 	templates := make([]models.Template, 0)
 	for rows.Next() {

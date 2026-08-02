@@ -18,8 +18,7 @@ func TestCreatePackingList_NameOnly(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), name, nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	assert.Equal(t, name, created.Name)
 	assert.Nil(t, created.EventDate)
 	assert.Nil(t, created.TemplateID)
@@ -34,8 +33,7 @@ func TestCreatePackingList_WithEventDate(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), name, &eventDate, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	require.NotNil(t, created.EventDate)
 	assert.Equal(t, eventDate, *created.EventDate)
 }
@@ -57,8 +55,7 @@ func TestCreatePackingList_WithTemplateItemsCopiesFidelity(t *testing.T) {
 	tmplIDStr := tmplID.String()
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), name, nil, &tmplIDStr)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	require.NotNil(t, created.TemplateID)
 	assert.Equal(t, tmplID, *created.TemplateID)
 	require.Len(t, created.Items, 2)
@@ -86,7 +83,11 @@ func TestCreatePackingList_WithTemplateItemsCopiesFidelity(t *testing.T) {
 	// that it was left NULL for every copied row, per the PACK-010 decision.
 	rows, err := db.DB.QueryContext(ctx, `SELECT sort_order FROM packing_list_items WHERE list_id = $1`, created.ID)
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			t.Logf("failed to close rows: %v", cerr)
+		}
+	}()
 	count := 0
 	for rows.Next() {
 		var sortOrder *int
@@ -105,8 +106,7 @@ func TestCreatePackingList_WithEmptyTemplate(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), name, nil, &tmplIDStr)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	assert.Equal(t, []models.PackingListItem{}, created.Items)
 }
 
@@ -126,7 +126,7 @@ func createTestCategoryNamed(t *testing.T, userID, name string) uuid.UUID {
 	t.Helper()
 	cat, err := catRepo.CreateCategory(context.Background(), userID, name)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM categories WHERE id = $1`, cat.ID) })
+	cleanupExec(t, `DELETE FROM categories WHERE id = $1`, cat.ID)
 	return cat.ID
 }
 
@@ -137,7 +137,7 @@ func createTestItemNamed(t *testing.T, catID uuid.UUID, name string) uuid.UUID {
 	t.Helper()
 	item, err := itemRepo.CreateItem(context.Background(), repoUserID.String(), name, catID.String())
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM items WHERE id = $1`, item.ID) })
+	cleanupExec(t, `DELETE FROM items WHERE id = $1`, item.ID)
 	return item.ID
 }
 
@@ -146,11 +146,10 @@ func TestGetPackingLists_ActiveOnly(t *testing.T) {
 
 	active, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-active-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, active.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, active.ID)
 	archived, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archived-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, archived.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, archived.ID)
 	archivePackingListDirect(t, archived.ID, time.Now())
 
 	lists, err := packingListRepo.GetPackingLists(ctx, repoUserID.String(), false)
@@ -174,11 +173,10 @@ func TestGetPackingLists_ArchivedOnly(t *testing.T) {
 
 	active, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-active2-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, active.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, active.ID)
 	archived, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archived2-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, archived.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, archived.ID)
 	archivePackingListDirect(t, archived.ID, time.Now())
 
 	lists, err := packingListRepo.GetPackingLists(ctx, repoUserID.String(), true)
@@ -208,7 +206,7 @@ func TestGetPackingLists_ItemsAlwaysEmpty(t *testing.T) {
 	tmplIDStr := tmplID.String()
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-itemsempty-"+uuid.NewString(), nil, &tmplIDStr)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	require.Len(t, created.Items, 1, "sanity check: list was actually seeded with an item")
 
 	lists, err := packingListRepo.GetPackingLists(ctx, repoUserID.String(), false)
@@ -232,7 +230,7 @@ func TestGetPackingLists_ItemCountAndPackedCount(t *testing.T) {
 
 	withItems, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-counts-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, withItems.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, withItems.ID)
 	_, err = packingListRepo.AddPackingListItem(ctx, withItems.ID.String(), itemA.String(), 1, nil)
 	require.NoError(t, err)
 	_, err = packingListRepo.AddPackingListItem(ctx, withItems.ID.String(), itemB.String(), 1, nil)
@@ -243,8 +241,7 @@ func TestGetPackingLists_ItemCountAndPackedCount(t *testing.T) {
 
 	empty, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-nocounts-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, empty.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, empty.ID)
 	lists, err := packingListRepo.GetPackingLists(ctx, repoUserID.String(), false)
 	require.NoError(t, err)
 
@@ -270,12 +267,10 @@ func TestGetPackingLists_ActiveOrderedByUpdatedAtDesc(t *testing.T) {
 
 	older, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-older-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, older.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, older.ID)
 	newer, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-newer-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, newer.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, newer.ID)
 	_, err = db.DB.ExecContext(ctx, `UPDATE packing_lists SET updated_at = $1 WHERE id = $2`, time.Now().Add(-1*time.Hour), older.ID)
 	require.NoError(t, err)
 	_, err = db.DB.ExecContext(ctx, `UPDATE packing_lists SET updated_at = $1 WHERE id = $2`, time.Now(), newer.ID)
@@ -303,12 +298,12 @@ func TestGetPackingLists_ArchivedOrderedByArchivedAtDesc(t *testing.T) {
 
 	archivedEarlier, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archearly-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, archivedEarlier.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, archivedEarlier.ID)
 	archivePackingListDirect(t, archivedEarlier.ID, time.Now().Add(-1*time.Hour))
 
 	archivedLater, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archlater-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, archivedLater.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, archivedLater.ID)
 	archivePackingListDirect(t, archivedLater.ID, time.Now())
 
 	lists, err := packingListRepo.GetPackingLists(ctx, repoUserID.String(), true)
@@ -334,8 +329,7 @@ func TestGetPackingListByID_Found(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), name, nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	found, err := packingListRepo.GetPackingListByID(ctx, created.ID.String())
 	require.NoError(t, err)
 	require.NotNil(t, found)
@@ -357,7 +351,7 @@ func TestGetPackingListByID_ArchivedStillReturned(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archdetail-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	archivePackingListDirect(t, created.ID, time.Now())
 
 	found, err := packingListRepo.GetPackingListByID(ctx, created.ID.String())
@@ -387,8 +381,7 @@ func TestGetPackingListByID_GroupedByCategoryAlphabetical(t *testing.T) {
 	tmplIDStr := tmplID.String()
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-grouped-"+uuid.NewString(), nil, &tmplIDStr)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	found, err := packingListRepo.GetPackingListByID(ctx, created.ID.String())
 	require.NoError(t, err)
 	require.NotNil(t, found)
@@ -433,8 +426,7 @@ func TestGetPackingListByID_OrdersBySortOrderThenAlphabetical(t *testing.T) {
 	tmplIDStr := tmplID.String()
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-sortorder-"+uuid.NewString(), nil, &tmplIDStr)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	// itemBravo and itemAlpha get explicit sort_order; itemEcho/itemZulu
 	// stay NULL and must fall back to alphabetical among themselves.
 	setPackingListItemSortOrderDirect(t, created.ID, itemBravo, 1)
@@ -460,8 +452,7 @@ func TestUpdatePackingList_NameOnly(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-upd-name-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	newName := "repo-test-list-upd-name-new-" + uuid.NewString()
 	updated, err := packingListRepo.UpdatePackingList(ctx, created.ID.String(), &newName, nil)
 	require.NoError(t, err)
@@ -474,8 +465,7 @@ func TestUpdatePackingList_EventDateOnly(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-upd-date-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	eventDate := "2026-09-15"
 	updated, err := packingListRepo.UpdatePackingList(ctx, created.ID.String(), nil, &eventDate)
 	require.NoError(t, err)
@@ -490,8 +480,7 @@ func TestUpdatePackingList_Both(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-upd-both-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	newName := "repo-test-list-upd-both-new-" + uuid.NewString()
 	eventDate := "2026-10-01"
 	updated, err := packingListRepo.UpdatePackingList(ctx, created.ID.String(), &newName, &eventDate)
@@ -507,7 +496,7 @@ func TestUpdatePackingList_OnArchivedList(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-upd-arch-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	archivePackingListDirect(t, created.ID, time.Now())
 
 	newName := "repo-test-list-upd-arch-new-" + uuid.NewString()
@@ -528,8 +517,7 @@ func TestUpdatePackingList_ReturnsGroupedCategories(t *testing.T) {
 	tmplIDStr := tmplID.String()
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-upd-grouped-"+uuid.NewString(), nil, &tmplIDStr)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	newName := "repo-test-list-upd-grouped-new-" + uuid.NewString()
 	updated, err := packingListRepo.UpdatePackingList(ctx, created.ID.String(), &newName, nil)
 	require.NoError(t, err)
@@ -544,8 +532,7 @@ func TestArchivePackingList_SetsArchivedAt(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archive-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	err = packingListRepo.ArchivePackingList(ctx, created.ID.String())
 	require.NoError(t, err)
 
@@ -560,8 +547,7 @@ func TestArchivePackingList_Idempotent(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-archidem-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	err = packingListRepo.ArchivePackingList(ctx, created.ID.String())
 	require.NoError(t, err)
 	err = packingListRepo.ArchivePackingList(ctx, created.ID.String())
@@ -578,7 +564,7 @@ func TestUnarchivePackingList_ClearsArchivedAt(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-unarchive-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	archivePackingListDirect(t, created.ID, time.Now())
 
 	err = packingListRepo.UnarchivePackingList(ctx, created.ID.String())
@@ -595,8 +581,7 @@ func TestUnarchivePackingList_IdempotentOnAlreadyActive(t *testing.T) {
 
 	created, err := packingListRepo.CreatePackingList(ctx, repoUserID.String(), "repo-test-list-unarchidem-"+uuid.NewString(), nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { db.DB.Exec(`DELETE FROM packing_lists WHERE id = $1`, created.ID) })
-
+	cleanupExec(t, `DELETE FROM packing_lists WHERE id = $1`, created.ID)
 	err = packingListRepo.UnarchivePackingList(ctx, created.ID.String())
 	require.NoError(t, err, "unarchiving an already-active list must not error")
 

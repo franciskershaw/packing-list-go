@@ -16,7 +16,9 @@ func setRequiredEnv(t *testing.T) {
 
 func TestLoad_EnvironmentDefaultsToDevelopment(t *testing.T) {
 	setRequiredEnv(t)
-	os.Unsetenv("APP_ENV")
+	if err := os.Unsetenv("APP_ENV"); err != nil {
+		t.Fatalf("failed to unset APP_ENV: %v", err)
+	}
 
 	cfg, err := Load()
 	if err != nil {
@@ -44,7 +46,9 @@ func TestLoad_EnvironmentReadsAppEnv(t *testing.T) {
 
 func TestLoad_RequiresFrontendURL(t *testing.T) {
 	setRequiredEnv(t)
-	os.Unsetenv("FRONTEND_URL")
+	if err := os.Unsetenv("FRONTEND_URL"); err != nil {
+		t.Fatalf("failed to unset FRONTEND_URL: %v", err)
+	}
 
 	_, err := Load()
 	if err == nil {
@@ -54,7 +58,9 @@ func TestLoad_RequiresFrontendURL(t *testing.T) {
 
 func TestLoad_RequiresJWTSecretOAuthState(t *testing.T) {
 	setRequiredEnv(t)
-	os.Unsetenv("JWT_SECRET_OAUTH_STATE")
+	if err := os.Unsetenv("JWT_SECRET_OAUTH_STATE"); err != nil {
+		t.Fatalf("failed to unset JWT_SECRET_OAUTH_STATE: %v", err)
+	}
 
 	_, err := Load()
 	if err == nil {
@@ -64,7 +70,9 @@ func TestLoad_RequiresJWTSecretOAuthState(t *testing.T) {
 
 func TestLoad_TrustedProxiesDefaultsToEmpty(t *testing.T) {
 	setRequiredEnv(t)
-	os.Unsetenv("TRUSTED_PROXIES")
+	if err := os.Unsetenv("TRUSTED_PROXIES"); err != nil {
+		t.Fatalf("failed to unset TRUSTED_PROXIES: %v", err)
+	}
 
 	cfg, err := Load()
 	if err != nil {
