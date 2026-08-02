@@ -261,7 +261,7 @@ func TestGoogleCallback_HappyPath_SecureCookieInProduction(t *testing.T) {
 	}
 	require.NotNil(t, refreshCookie, "expected refreshToken cookie to be set")
 	assert.True(t, refreshCookie.Secure, "expected Secure=true in production")
-	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
+	assert.Equal(t, http.SameSiteNoneMode, refreshCookie.SameSite, "expected SameSite=None in production")
 
 	oauthMgr.AssertExpectations(t)
 	userRepo.AssertExpectations(t)
@@ -892,6 +892,34 @@ func TestLogout_ClearsCookie(t *testing.T) {
 	assert.True(t, refreshCookie.MaxAge < 0, "expected refreshToken cookie to be expired, got MaxAge=%d", refreshCookie.MaxAge)
 	assert.False(t, refreshCookie.Secure, "expected Secure=false in development")
 	assert.Equal(t, http.SameSiteLaxMode, refreshCookie.SameSite)
+}
+
+func TestLogout_ClearsCookie_SameSiteNoneInProduction(t *testing.T) {
+	userRepo := &MockUserRepository{}
+	oauthMgr := &MockOAuthManager{}
+	refreshTokenRepo := &MockRefreshTokenRepository{}
+
+	h := handler.NewAuthHandler(userRepo, oauthMgr, refreshTokenRepo, testConfig("production"))
+	r := newTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "refreshToken", Value: "some-token"})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	cookies := w.Result().Cookies()
+	var refreshCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "refreshToken" {
+			refreshCookie = c
+		}
+	}
+	require.NotNil(t, refreshCookie)
+	assert.True(t, refreshCookie.MaxAge < 0, "expected refreshToken cookie to be expired, got MaxAge=%d", refreshCookie.MaxAge)
+	assert.True(t, refreshCookie.Secure, "expected Secure=true in production")
+	assert.Equal(t, http.SameSiteNoneMode, refreshCookie.SameSite, "expected SameSite=None in production")
 }
 
 func TestLogout_RevokesMatchingFamily(t *testing.T) {
