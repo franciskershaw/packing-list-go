@@ -16,7 +16,6 @@ INSERT INTO categories (name) VALUES
   ('Food & Drink'),
   ('Camping Gear'),
   ('Sports & Fitness'),
-  ('Baby & Kids'),
   ('Accessories'),
   ('Entertainment')
 ON CONFLICT (name)
