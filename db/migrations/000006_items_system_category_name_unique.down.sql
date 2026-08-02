@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_items_system_category_name_unique;
