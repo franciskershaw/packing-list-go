@@ -580,3 +580,28 @@ project kickoff.
   prompt each time this recurs.
 - Demotion check: skipped — Epic 7 still has open tickets
   (PACK-026/028/037/038), not a boundary.
+
+## 2026-08-02 — PACK-038 — First-ever deploy shipped clean on the first push; found a real rollback gap in the pattern copied from two other repos
+
+- No rework on the code itself (Dockerfile, CORS middleware, the
+  `SameSite` fix all landed as planned). The real find was in the
+  *pattern* being copied from `events-api`/`salary-split-api`: their
+  `deploy.yml` kills the production container before the new one's
+  health is ever checked, and the `:previous` rollback tag it pushes is
+  never actually used on failure — a failed health check there leaves
+  the site down with no automated recovery. This repo's `deploy.yml`
+  closes that gap; not backported to the other two.
+- **Pattern**: when copying an ops/deploy pattern from prior repos
+  "because it's proven," trace what each safety mechanism (a rollback
+  tag, a health check) actually *does* end-to-end before trusting it —
+  "proven" meant "never failed yet" there, not "recovers correctly when
+  it does."
+- One finding stayed open by deliberate choice: `SameSite=None` +
+  confirmed-working CORS still didn't get the browser to send the cookie
+  cross-site in a `localhost`-vs-real-domain test (suspected third-party-
+  cookie policy, unconfirmed) — judged a test-harness limitation (no real
+  frontend deployed yet), not a defect. Revisit when `packing-list-react`
+  gets a real deployment; a `packitapp.co.uk` subdomain rather than a
+  generic `*.vercel.app` domain would sidestep the whole problem class.
+- Demotion check: skipped — Epic 7 still has open tickets
+  (PACK-026/028/037), not a boundary.

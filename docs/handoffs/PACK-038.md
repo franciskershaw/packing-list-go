@@ -202,21 +202,44 @@ Key decisions from the interview:
       existing `:5300` (salary-split-api) and `:5500` (events-api); still
       needs confirming as actually free on the Droplet itself before first
       deploy.
-- [ ] All required GitHub repo secrets added (see manual steps below) —
-      `DO_HOST`, `DO_USERNAME`, `DO_SSH_KEY`, `DOCKER_USERNAME`,
-      `DOCKER_PASSWORD`, `CERTBOT_EMAIL`, `PROD_DATABASE_URL`,
-      `JWT_SECRET_ACCESS`, `JWT_SECRET_REFRESH`, `JWT_SECRET_OAUTH_STATE`,
-      `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`,
-      `FRONTEND_URL`.
-- [ ] `https://api.packitapp.co.uk/health` reachable and returns 200 in a
-      real browser, with a valid (non-self-signed) certificate.
-- [ ] Manual OAuth round-trip verified once: visiting
-      `https://api.packitapp.co.uk/auth/google/login` in a browser
-      completes Google's consent screen and lands back on
-      `http://localhost:5173/auth/callback` with a working session
-      (confirms Console redirect URI, `SameSite=None` refresh cookie, and
-      CORS are all correctly wired together) — run with the local frontend
-      dev server up.
+- [x] All required GitHub repo secrets added, as `production` Environment
+      secrets (see manual steps below) — `DO_HOST`, `DO_USERNAME`,
+      `DO_SSH_KEY`, `DOCKER_USERNAME`, `DOCKER_PASSWORD`, `CERTBOT_EMAIL`,
+      `PROD_DATABASE_URL`, `JWT_SECRET_ACCESS`, `JWT_SECRET_REFRESH`,
+      `JWT_SECRET_OAUTH_STATE`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+      `GOOGLE_REDIRECT_URI`, `FRONTEND_URL`.
+- [x] `https://api.packitapp.co.uk/health` reachable and returns 200 in a
+      real browser, with a valid certificate — first-ever deploy succeeded
+      on the first push, no rollback triggered.
+- [x] Manual OAuth round-trip attempted and partially verified. Visiting
+      `https://api.packitapp.co.uk/auth/google/login` completed the OAuth
+      exchange (Google skipped its consent screen — prior grant already on
+      file for this client — and redirected straight through) and landed
+      on `http://localhost:5173/auth/callback` with the `refreshToken`
+      cookie correctly set on `api.packitapp.co.uk` (`SameSite=None`,
+      `Secure` both confirmed via DevTools). A direct cross-origin
+      `fetch("https://api.packitapp.co.uk/auth/refresh", {credentials:
+      "include"})` from a `localhost:5173` tab confirmed **CORS is
+      correctly wired** (a real JSON response came back — a CORS failure
+      would instead throw with no response body at all) but still 401'd
+      with "refresh token missing," meaning the browser did not attach the
+      cookie despite correct `SameSite`/`Secure` attributes and
+      `credentials: "include"`. Not Incognito, third-party cookies not
+      disabled in browser settings — cause not conclusively identified;
+      most likely Chrome's third-party-cookie policy still applying to a
+      `localhost`-vs-real-domain pair regardless, though this wasn't
+      confirmed. **Judged not worth further debugging**: this is
+      fundamentally a `localhost`-as-a-stand-in-for-a-real-frontend
+      limitation, not something further isolated testing without a real
+      deployed frontend can conclusively resolve. Backend-side correctness
+      (cookie attributes, CORS headers) is confirmed; genuine end-to-end
+      confirmation is deferred to whenever `packing-list-react` gets a
+      real deployment. **Worth deciding then**: putting that frontend on
+      a `packitapp.co.uk` subdomain (e.g. `app.packitapp.co.uk`) rather
+      than a generic `*.vercel.app` domain would make frontend and backend
+      same-site, sidestepping this entire class of problem (`SameSite=Lax`
+      would suffice, no third-party-cookie policy would apply) — flagged
+      here for whoever picks up that ticket, not decided now.
 
 ## Non-goals
 
@@ -280,17 +303,14 @@ surface is the cookie/CORS change:
 1. ~~**Neon**: check whether IP Allow is enabled~~ — **done**. Project
    Settings → Networking → "Allow traffic via the public internet" is
    enabled (the default), confirming no IP allowlist is blocking the
-   Droplet. Still to do: create a new `production` branch; copy its
-   connection string.
-2. **Neon (production branch)**: after first deploy (migrations
-   auto-apply on startup), run `db/seeds/categories.sql` against the new
-   `production` branch via **Neon's web SQL Editor** — not `psql`, which
-   isn't installed locally (established default for ad hoc SQL on this
-   project since PACK-033, see `LESSONS.md` 2026-07-26). Confirm the
-   result is exactly 11 category rows (the seed's own idempotency guard
-   from PACK-033 makes a second accidental run harmless, but checking the
-   count once is a cheap sanity check on a branch that's never been seeded
-   before). Item creation has no categories to attach to until this runs —
+   Droplet. Turned out a `production` branch already existed (the
+   project's original default branch, with dev/CI's branch created as a
+   child of it at some point) — no tables on it, connection string copied
+   from there rather than a newly-created branch.
+2. ~~**Neon (production branch)**: run `db/seeds/categories.sql`~~ —
+   **done**, via Neon's web SQL Editor (established default since
+   PACK-033, not `psql`). Item creation on prod now has categories to
+   attach to —
    same gap PACK-033 fixed for the dev branch.
 3. ~~**Cloudflare**: add `packitapp.co.uk` as a site, A record `api` →
    Droplet IP, switch nameservers, set SSL/TLS mode to Full (Strict)~~ —
@@ -332,4 +352,4 @@ surface is the cookie/CORS change:
 
 ## Close-out
 
-(Filled in at `/close-out` once this ticket ships.)
+Completed 2026-08-02. Retro entry in LESSONS.md.

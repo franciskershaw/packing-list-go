@@ -570,4 +570,6 @@ the numbering implies an order.)*
     than bundled in, since picking a deployment target (Render/Fly/Railway/
     etc.), container-vs-buildpack, and production secrets management is a
     real decision with its own blast radius deserving its own `/grill-me`.
-  - **Status: not started.**
+  - **Status: Done.** See `docs/handoffs/PACK-038.md`. Deployed to
+    DigitalOcean (existing shared Droplet), reachable at
+    `https://api.packitapp.co.uk`.
