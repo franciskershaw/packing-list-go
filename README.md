@@ -1,4 +1,4 @@
-# Pack-It — REST API
+# Pack-It - REST API
 
 This is a REST API built in Go to serve a packing list app called Pack-It. I had really wanted to learn Go having spent years building full stack applications purely in TypeScript, so this simple app idea to solve a very specific and understandable problem was the perfect vessel to properly try my hand at building something real in a new language. AI assisted me in a heavily test-driven and interview/specs driven approach in order to allow me to be fully in control over the direction of the code. The result is a secure, mostly idiomatic Go application that I'm satisfied will provide a great template for me going forward in my Go journey!
 
