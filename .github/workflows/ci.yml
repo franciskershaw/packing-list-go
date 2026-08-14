@@ -12,6 +12,10 @@ env:
   # Confirm this port is free on the droplet before the first deploy —
   # events-api uses :5500, salary-split-api uses :5300.
   PORT: 5400
+  # Nginx runs on the same droplet and proxies over loopback (see
+  # nginx/packing-list-api.conf) — this is that one trusted hop, not a
+  # secret.
+  TRUSTED_PROXIES: 127.0.0.1
 
 jobs:
   checks:
@@ -212,6 +216,7 @@ jobs:
               -e GOOGLE_CLIENT_SECRET='${{ secrets.GOOGLE_CLIENT_SECRET }}' \
               -e GOOGLE_REDIRECT_URI='${{ secrets.GOOGLE_REDIRECT_URI }}' \
               -e FRONTEND_URL='${{ secrets.FRONTEND_URL }}' \
+              -e TRUSTED_PROXIES='${{ env.TRUSTED_PROXIES }}' \
               ${{ env.DOCKER_IMAGE }}:latest
 
             sleep 15
@@ -259,6 +264,7 @@ jobs:
                 -e GOOGLE_CLIENT_SECRET='${{ secrets.GOOGLE_CLIENT_SECRET }}' \
                 -e GOOGLE_REDIRECT_URI='${{ secrets.GOOGLE_REDIRECT_URI }}' \
                 -e FRONTEND_URL='${{ secrets.FRONTEND_URL }}' \
+                -e TRUSTED_PROXIES='${{ env.TRUSTED_PROXIES }}' \
                 ${{ env.DOCKER_IMAGE }}:previous
 
               echo "::error::Deploy failed health check — rolled back to :previous. Investigate before retrying."
